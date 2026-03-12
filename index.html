@@ -1,54 +1,3495 @@
--- ══════════════════════════════════════════
--- SXB RS DASHBOARD '26 — Supabase Tables
--- Colle ce SQL dans Supabase > SQL Editor > New query
--- ══════════════════════════════════════════
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SXB RS DASHBOARD '26</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --cream: #faf7f2;
+  --warm: #f5f0e8;
+  --warm2: #ede6d9;
+  --card: #ffffff;
+  --card-warm: #fffcf7;
+  --border: #e8dfd0;
+  --border2: #d4c9b5;
+  --text: #1a1510;
+  --dim: #6b5e4e;
+  --muted: #a8977f;
+  --terra: #c4622d;
+  --terra-l: rgba(196,98,45,0.1);
+  --terra-m: rgba(196,98,45,0.2);
+  --sage: #5a7a5e;
+  --sage-l: rgba(90,122,94,0.1);
+  --gold: #c9953a;
+  --gold-l: rgba(201,149,58,0.12);
+  --blue: #3a6b8a;
+  --blue-l: rgba(58,107,138,0.1);
+  --red: #a02020;
+  --shadow: 0 2px 20px rgba(26,21,16,0.06);
+  --shadow-lg: 0 8px 40px rgba(26,21,16,0.12);
 
--- 1. Weekly entries
-CREATE TABLE IF NOT EXISTS weekly_entries (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  week_platform text NOT NULL,
-  entry_data jsonb NOT NULL,
-  updated_at timestamptz DEFAULT now(),
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(user_id, week_platform)
-);
-ALTER TABLE weekly_entries ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users own entries" ON weekly_entries
-  FOR ALL USING (auth.uid() = user_id);
+  /* Platform colors */
+  --ig: #c4622d;
+  --li: #3a6b8a;
+  --tt: #2d2520;
+  --yt: #a02020;
+}
 
--- 2. Watch accounts
-CREATE TABLE IF NOT EXISTS watch_accounts (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  account_data jsonb NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE watch_accounts ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users own accounts" ON watch_accounts
-  FOR ALL USING (auth.uid() = user_id);
+* { margin:0; padding:0; box-sizing:border-box; }
 
--- 3. Veille notes
-CREATE TABLE IF NOT EXISTS veille_notes (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
-  notes text DEFAULT '',
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE veille_notes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users own notes" ON veille_notes
-  FOR ALL USING (auth.uid() = user_id);
+body {
+  background: var(--cream);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+}
 
--- 4. Competitors
-CREATE TABLE IF NOT EXISTS competitors (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  comp_data jsonb NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE competitors ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users own competitors" ON competitors
-  FOR ALL USING (auth.uid() = user_id);
+/* ── AUTH SCREEN ── */
+#auth-screen {
+  position: fixed; inset: 0; background: var(--cream);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999; flex-direction: column; gap: 0;
+}
+#auth-screen.hidden { display: none; }
+.auth-box {
+  background: white; border-radius: 20px; padding: 48px 40px;
+  box-shadow: var(--shadow-lg); width: 100%; max-width: 420px;
+  border: 1px solid var(--border);
+}
+.auth-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem; font-weight: 700;
+  color: var(--terra); text-align: center; margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+.auth-sub {
+  text-align: center; color: var(--dim); font-size: .85rem;
+  margin-bottom: 32px;
+}
+.auth-tabs {
+  display: flex; gap: 4px; background: var(--warm);
+  border-radius: 10px; padding: 4px; margin-bottom: 28px;
+}
+.auth-tab {
+  flex: 1; padding: 8px; border: none; background: transparent;
+  border-radius: 8px; font-family: 'Outfit', sans-serif;
+  font-size: .85rem; font-weight: 500; cursor: pointer;
+  color: var(--dim); transition: all .2s;
+}
+.auth-tab.active {
+  background: white; color: var(--terra);
+  box-shadow: 0 1px 6px rgba(0,0,0,.08);
+}
+.auth-field {
+  margin-bottom: 16px;
+}
+.auth-field label {
+  display: block; font-size: .78rem; font-weight: 600;
+  color: var(--dim); margin-bottom: 6px; text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.auth-field input {
+  width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+  border-radius: 10px; font-family: 'Outfit', sans-serif;
+  font-size: .95rem; background: var(--cream); color: var(--text);
+  transition: border-color .2s; outline: none;
+}
+.auth-field input:focus { border-color: var(--terra); }
+.auth-btn {
+  width: 100%; padding: 14px; background: var(--terra); color: white;
+  border: none; border-radius: 10px; font-family: 'Outfit', sans-serif;
+  font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 8px;
+  transition: opacity .2s; letter-spacing: .3px;
+}
+.auth-btn:hover { opacity: .9; }
+.auth-btn:disabled { opacity: .5; cursor: not-allowed; }
+.auth-msg {
+  margin-top: 14px; padding: 10px 14px; border-radius: 8px;
+  font-size: .85rem; text-align: center; display: none;
+}
+.auth-msg.error { background: rgba(160,32,32,.08); color: var(--red); display: block; }
+.auth-msg.success { background: rgba(90,122,94,.1); color: var(--sage); display: block; }
+.auth-user-bar {
+  position: fixed; top: 0; right: 0; left: 252px;
+  background: white; border-bottom: 1px solid var(--border);
+  padding: 8px 24px; display: flex; align-items: center;
+  justify-content: flex-end; gap: 12px; z-index: 100;
+  font-size: .82rem;
+}
+.auth-user-email { color: var(--dim); }
+.auth-logout-btn {
+  padding: 5px 14px; background: var(--warm); border: 1px solid var(--border);
+  border-radius: 20px; font-family: 'Outfit', sans-serif; font-size: .8rem;
+  cursor: pointer; color: var(--dim); transition: all .2s;
+}
+.auth-logout-btn:hover { background: var(--terra); color: white; border-color: var(--terra); }
+@media (max-width: 680px) {
+  .auth-box { margin: 16px; padding: 32px 24px; }
+  .auth-user-bar { left: 0; }
+}
 
--- ✅ Tables créées avec Row Level Security activé
--- Chaque utilisateur voit uniquement ses propres données
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(circle at 15% 85%, rgba(196,98,45,0.04) 0%, transparent 50%),
+    radial-gradient(circle at 85% 15%, rgba(90,122,94,0.04) 0%, transparent 50%);
+  pointer-events: none; z-index: 0;
+}
+
+.shell { display:flex; min-height:100vh; position:relative; z-index:1; }
+
+/* ─── SIDEBAR ─── */
+.sidebar {
+  width:252px; background:var(--text);
+  display:flex; flex-direction:column;
+  padding:28px 0; position:fixed;
+  top:0; left:0; bottom:0; z-index:100;
+  overflow-y:auto;
+}
+
+.brand { padding:0 24px 24px; border-bottom:1px solid rgba(255,255,255,0.07); }
+.brand-name {
+  font-family:'Playfair Display',serif;
+  font-size:24px; font-weight:900; color:#fff; margin-bottom:4px;
+}
+.brand-name span { color:var(--terra); }
+.brand-sub { font-size:10px; color:rgba(255,255,255,0.3); text-transform:uppercase; letter-spacing:2px; }
+
+.niche-pill {
+  margin:18px 16px 0;
+  background:rgba(196,98,45,0.15);
+  border:1px solid rgba(196,98,45,0.3);
+  border-radius:10px; padding:11px 13px;
+}
+.niche-pill .nl { font-size:9px; text-transform:uppercase; letter-spacing:2px; color:var(--terra); font-weight:700; margin-bottom:3px; }
+.niche-pill .nv { font-size:11px; color:rgba(255,255,255,0.75); line-height:1.45; }
+
+.nav { padding:20px 14px; flex:1; display:flex; flex-direction:column; gap:3px; }
+.nav-lbl { font-size:9px; text-transform:uppercase; letter-spacing:2px; color:rgba(255,255,255,0.2); font-weight:600; padding:0 10px; margin:10px 0 5px; }
+
+.ni {
+  display:flex; align-items:center; gap:11px;
+  padding:10px 13px; border-radius:9px;
+  cursor:pointer; transition:all .18s;
+  color:rgba(255,255,255,0.45); font-size:13px; font-weight:500;
+  border:1px solid transparent;
+}
+.ni:hover { color:rgba(255,255,255,0.8); background:rgba(255,255,255,0.05); }
+.ni.active { background:rgba(196,98,45,0.15); color:#fff; border-color:rgba(196,98,45,0.3); }
+.ni-icon { font-size:15px; width:18px; text-align:center; }
+
+.streak-box {
+  margin:14px 14px 0;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:11px; padding:13px;
+}
+.streak-box .st { font-size:9px; color:rgba(255,255,255,0.25); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; }
+.streak-box .sv { font-family:'Playfair Display',serif; font-size:28px; font-weight:900; color:var(--terra); line-height:1; }
+.streak-box .sl { font-size:11px; color:rgba(255,255,255,0.4); margin-top:3px; }
+
+/* ─── MAIN ─── */
+.main { margin-left:252px; flex:1; display:flex; flex-direction:column; }
+
+/* ─── TOPBAR ─── */
+.topbar {
+  background:var(--card); border-bottom:1px solid var(--border);
+  padding:18px 32px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:50; box-shadow:var(--shadow);
+}
+.tl h1 { font-family:'Playfair Display',serif; font-size:22px; font-weight:700; margin-bottom:2px; }
+.tl p { font-size:12px; color:var(--muted); }
+.tr { display:flex; gap:9px; align-items:center; }
+
+.pill {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 13px; border-radius:20px; font-size:11px; font-weight:600; border:1px solid;
+}
+.pill-terra { background:var(--terra-l); color:var(--terra); border-color:rgba(196,98,45,0.25); }
+.pill-sage { background:var(--sage-l); color:var(--sage); border-color:rgba(90,122,94,0.3); }
+.live-dot { width:6px; height:6px; border-radius:50%; background:var(--sage); animation:blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ─── CONTENT ─── */
+.content { padding:28px 32px; flex:1; }
+
+.section { display:none; }
+.section.active { display:block; }
+
+/* ─── COMMON CARDS ─── */
+.card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:16px; padding:24px; box-shadow:var(--shadow);
+}
+.card-warm { background:var(--card-warm); border-color:var(--border2); }
+
+.sec-h {
+  font-family:'Playfair Display',serif;
+  font-size:17px; font-weight:700; margin-bottom:4px;
+}
+.sec-sub { font-size:12px; color:var(--muted); margin-bottom:18px; }
+
+/* ─── SAISIE SECTION ─── */
+.entry-banner {
+  background:linear-gradient(135deg, var(--text) 0%, #2d231a 100%);
+  border-radius:18px; padding:26px 30px; margin-bottom:24px;
+  display:flex; align-items:flex-start; gap:20px;
+  position:relative; overflow:hidden;
+}
+.entry-banner::before {
+  content:''; position:absolute; right:-50px; top:-50px;
+  width:200px; height:200px; border-radius:50%;
+  background:radial-gradient(circle, rgba(196,98,45,0.18) 0%, transparent 70%);
+}
+.entry-banner .icon { font-size:32px; flex-shrink:0; margin-top:3px; }
+.entry-banner-body { flex:1; }
+.entry-banner h2 { font-family:'Playfair Display',serif; font-size:18px; font-weight:700; color:#fff; margin-bottom:4px; }
+.entry-banner p { font-size:12px; color:rgba(255,255,255,0.45); line-height:1.6; }
+
+/* week selector */
+.week-row {
+  display:flex; align-items:center; gap:10px; margin-top:14px;
+}
+.week-row label { font-size:11px; color:rgba(255,255,255,0.4); font-weight:600; text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
+.week-input {
+  background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
+  border-radius:9px; padding:8px 13px; color:#fff;
+  font-family:'Outfit',sans-serif; font-size:13px; outline:none; cursor:pointer;
+}
+.week-input:focus { border-color:var(--terra); }
+
+/* platform tabs */
+.plat-tabs { display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; }
+.plat-tab {
+  display:flex; align-items:center; gap:7px;
+  padding:8px 16px; border-radius:9px; border:1.5px solid var(--border);
+  background:var(--warm); cursor:pointer; font-size:13px; font-weight:600;
+  transition:all .18s; color:var(--muted);
+}
+.plat-tab:hover { border-color:var(--border2); color:var(--text); }
+.plat-tab.active[data-p="ig"]  { background:var(--terra-l); border-color:var(--terra); color:var(--terra); }
+.plat-tab.active[data-p="li"]  { background:var(--blue-l);  border-color:var(--blue);  color:var(--blue); }
+.plat-tab.active[data-p="tt"]  { background:rgba(45,37,32,.07); border-color:var(--tt); color:var(--tt); }
+.plat-tab.active[data-p="yt"]  { background:rgba(160,32,32,.1); border-color:var(--yt); color:var(--yt); }
+
+/* fields grid */
+.fields-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr));
+  gap:14px; margin-bottom:20px;
+}
+.field-group { display:flex; flex-direction:column; gap:5px; }
+.field-group label { font-size:11px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:1px; }
+.field-group input {
+  background:var(--warm); border:1.5px solid var(--border);
+  border-radius:9px; padding:9px 13px;
+  font-family:'Outfit',sans-serif; font-size:14px; font-weight:500;
+  color:var(--text); outline:none; transition:border-color .2s;
+}
+.field-group input:focus { border-color:var(--terra); background:#fff; }
+.field-group input::placeholder { color:var(--muted); font-weight:400; }
+.field-hint { font-size:10px; color:var(--muted); }
+
+.save-btn {
+  background:var(--terra); color:#fff; border:none;
+  padding:11px 28px; border-radius:10px;
+  font-family:'Outfit',sans-serif; font-size:14px; font-weight:700;
+  cursor:pointer; transition:all .2s; display:flex; align-items:center; gap:8px;
+}
+.save-btn:hover { background:#b05526; transform:translateY(-1px); box-shadow:0 4px 16px rgba(196,98,45,0.3); }
+.save-btn:active { transform:translateY(0); }
+
+.saved-toast {
+  display:inline-flex; align-items:center; gap:7px;
+  background:var(--sage-l); border:1px solid rgba(90,122,94,0.3);
+  color:var(--sage); padding:10px 18px; border-radius:10px;
+  font-size:13px; font-weight:600; opacity:0; transition:opacity .3s;
+}
+.saved-toast.show { opacity:1; }
+
+/* ─── HISTORY TABLE ─── */
+.history-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead tr { border-bottom:2px solid var(--border); }
+th { padding:11px 14px; text-align:left; color:var(--muted); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; white-space:nowrap; }
+td { padding:12px 14px; border-bottom:1px solid var(--border); }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--warm); }
+.td-week { font-family:'DM Mono',monospace; font-size:12px; color:var(--dim); }
+.td-plat { display:inline-flex; align-items:center; gap:5px; font-weight:600; font-size:12px; }
+.td-num { font-family:'DM Mono',monospace; font-weight:500; }
+.td-delta { font-size:11px; font-weight:700; padding:2px 7px; border-radius:6px; white-space:nowrap; }
+.delta-up { background:var(--sage-l); color:var(--sage); }
+.delta-down { background:rgba(160,32,32,0.1); color:var(--red); }
+.delta-flat { background:var(--terra-l); color:var(--muted); }
+.del-btn {
+  background:none; border:none; cursor:pointer;
+  color:var(--muted); font-size:16px; padding:2px 6px; border-radius:5px; transition:all .15s;
+}
+.del-btn:hover { background:rgba(160,32,32,0.1); color:var(--red); }
+
+/* ─── CHART CANVAS ─── */
+.chart-area {
+  position:relative; width:100%; height:180px;
+}
+canvas { width:100%!important; }
+
+/* ─── METRICS OVERVIEW (computed from history) ─── */
+.metrics-4 {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px;
+}
+.met-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:14px; padding:18px; box-shadow:var(--shadow);
+  position:relative; overflow:hidden; transition:transform .2s;
+}
+.met-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+.met-card::after {
+  content:''; position:absolute; bottom:0; left:0; right:0;
+  height:3px; background:var(--mc,var(--terra)); border-radius:0 0 14px 14px;
+}
+.met-plat { display:flex; align-items:center; gap:7px; margin-bottom:12px; }
+.met-dot { width:8px; height:8px; border-radius:50%; background:var(--mc,var(--terra)); }
+.met-pname { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--muted); }
+.met-val { font-family:'Playfair Display',serif; font-size:32px; font-weight:900; color:var(--text); line-height:1; margin-bottom:3px; }
+.met-lbl { font-size:11px; color:var(--muted); margin-bottom:10px; }
+.met-delta {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px;
+}
+
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px; }
+
+/* ─── EMPTY STATE ─── */
+.empty-state {
+  text-align:center; padding:48px 24px; color:var(--muted);
+}
+.empty-state .es-icon { font-size:48px; margin-bottom:12px; }
+.empty-state h3 { font-family:'Playfair Display',serif; font-size:18px; color:var(--dim); margin-bottom:6px; }
+.empty-state p { font-size:13px; line-height:1.7; max-width:320px; margin:0 auto; }
+
+/* ─── VEILLE & AI CONTENT STYLES ─── */
+.loading-inline { font-size:12px; color:var(--muted); display:inline-flex; align-items:center; gap:6px; }
+
+.ai-result-box {
+  background:var(--warm); border:1.5px solid var(--border2);
+  border-radius:12px; padding:20px;
+}
+.ai-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:2px;
+  color:var(--sage); background:var(--sage-l); border:1px solid rgba(90,122,94,0.3);
+  padding:4px 12px; border-radius:20px; margin-bottom:12px;
+}
+
+.hook-ex {
+  background:var(--card); border:1.5px solid var(--border);
+  border-radius:9px; padding:10px 14px;
+  font-size:12px; color:var(--dim); line-height:1.6;
+  cursor:pointer; transition:all .15s; font-style:italic;
+}
+.hook-ex:hover { border-color:var(--terra); background:var(--terra-l); color:var(--terra); }
+
+.benchmark-row {
+  display:flex; align-items:center; gap:10px;
+  padding:9px 12px; background:var(--card); border:1px solid var(--border);
+  border-radius:8px; font-size:12px;
+}
+.bm-label { flex:1; color:var(--dim); font-weight:600; }
+.bm-val { font-family:'DM Mono',monospace; font-weight:700; color:var(--terra); font-size:13px; }
+.bm-note { font-size:10px; color:var(--sage); background:var(--sage-l); padding:2px 8px; border-radius:10px; white-space:nowrap; }
+
+.ai-tab-panel { }
+
+/* watch list items */
+.watch-account-item {
+  display:flex; align-items:center; gap:12px;
+  padding:12px 16px; border-bottom:1px solid var(--border);
+  transition:background .15s;
+}
+.watch-account-item:hover { background:var(--warm); }
+.watch-avatar {
+  width:36px; height:36px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Playfair Display',serif; font-weight:900; font-size:14px;
+  flex-shrink:0;
+}
+.watch-info { flex:1; min-width:0; }
+.watch-name { font-size:13px; font-weight:600; }
+.watch-plat-tag { font-size:10px; color:var(--muted); }
+.watch-del { background:none; border:none; cursor:pointer; color:var(--muted); font-size:15px; padding:2px 6px; border-radius:5px; transition:all .15s; }
+.watch-del:hover { background:rgba(160,32,32,0.1); color:var(--red); }
+
+/* ─── COMPETITOR STYLES ─── */
+.comp-tabs { display:flex; gap:1px; background:var(--border); border-radius:10px; overflow:hidden; margin-bottom:20px; }
+.comp-tab {
+  flex:1; padding:10px; text-align:center; font-size:12px; font-weight:700;
+  cursor:pointer; background:var(--warm); transition:all .15s; color:var(--muted);
+}
+.comp-tab:hover { background:var(--card); color:var(--text); }
+.comp-tab.active { background:var(--card); color:var(--terra); }
+
+.comp-card {
+  background:var(--card); border:1.5px solid var(--border);
+  border-radius:14px; padding:0; overflow:hidden;
+  transition:all .2s; box-shadow:var(--shadow);
+}
+.comp-card:hover { border-color:var(--terra); box-shadow:var(--shadow-lg); }
+.comp-card-header {
+  padding:14px 16px; background:var(--warm);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:12px;
+}
+.comp-avatar {
+  width:40px; height:40px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Playfair Display',serif; font-weight:900; font-size:15px;
+  flex-shrink:0;
+}
+.comp-name { font-size:14px; font-weight:700; color:var(--text); }
+.comp-handle { font-size:11px; color:var(--muted); margin-top:1px; }
+.comp-plat-tag { font-size:10px; font-weight:700; padding:2px 8px; border-radius:6px; }
+.comp-body { padding:14px 16px; }
+.comp-stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.comp-stat { text-align:center; }
+.comp-stat-val { font-family:'DM Mono',monospace; font-size:15px; font-weight:700; color:var(--text); }
+.comp-stat-lbl { font-size:10px; color:var(--muted); margin-top:2px; }
+.comp-actions { display:flex; gap:6px; padding:12px 16px; border-top:1px solid var(--border); }
+.comp-btn-sm {
+  flex:1; padding:7px; border-radius:8px; border:1.5px solid var(--border);
+  background:var(--warm); font-family:'Outfit',sans-serif; font-size:11px;
+  font-weight:600; color:var(--dim); cursor:pointer; transition:all .15s;
+}
+.comp-btn-sm:hover { border-color:var(--terra); color:var(--terra); background:var(--terra-l); }
+.comp-btn-sm.danger:hover { border-color:var(--red); color:var(--red); background:rgba(160,32,32,0.08); }
+
+.comp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; margin-bottom:20px; }
+
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+.form-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:12px; }
+
+.csv-template-box {
+  background:var(--warm); border:1.5px dashed var(--border2);
+  border-radius:10px; padding:14px 16px; margin-bottom:14px;
+  font-family:'DM Mono',monospace; font-size:11px; color:var(--dim); line-height:1.8;
+  overflow-x:auto; white-space:nowrap;
+}
+
+.comp-week-row {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 0; border-bottom:1px solid var(--border); font-size:12px;
+}
+.comp-week-row:last-child { border-bottom:none; }
+
+/* ─── GUIDE STYLES ─── */
+.guide-step {
+  display:flex; gap:16px; align-items:flex-start;
+  padding:14px 0; border-bottom:1px solid var(--border);
+  position:relative;
+}
+.guide-step:last-child { border-bottom:none; }
+
+.gs-num {
+  width:28px; height:28px; border-radius:50%;
+  background:var(--terra-l); color:var(--terra);
+  font-weight:800; font-size:13px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; margin-top:1px;
+}
+
+.gs-body { flex:1; }
+.gs-title { font-size:14px; font-weight:600; color:var(--text); margin-bottom:5px; }
+.gs-opt { font-size:11px; font-weight:500; color:var(--muted); background:var(--warm); padding:2px 8px; border-radius:10px; margin-left:6px; }
+.gs-path { font-size:12px; color:var(--dim); line-height:1.6; background:var(--warm); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-family:'DM Mono',monospace; }
+.gs-note { font-size:11px; color:var(--muted); margin-top:6px; font-style:italic; }
+
+.gs-tip {
+  margin-top:16px; padding:12px 16px;
+  background:var(--terra-l); border:1px solid rgba(196,98,45,0.2);
+  border-radius:10px; font-size:12px; color:var(--dim); line-height:1.7;
+}
+
+.metrics-map { display:flex; flex-direction:column; gap:6px; }
+.mm-row {
+  display:flex; align-items:baseline; gap:10px;
+  padding:8px 10px; border-radius:8px; background:var(--warm);
+  border:1px solid var(--border); font-size:12px;
+}
+.mm-field { font-weight:700; color:var(--text); min-width:160px; flex-shrink:0; }
+.mm-arrow { color:var(--terra); font-weight:700; flex-shrink:0; }
+.mm-where { color:var(--dim); line-height:1.5; }
+
+/* checklist */
+.ck-item {
+  display:flex; align-items:center; gap:12px;
+  padding:10px 14px; border-radius:10px;
+  background:rgba(255,255,255,0.05); cursor:pointer;
+  transition:all .15s; border:1px solid transparent;
+}
+.ck-item:hover { background:rgba(255,255,255,0.08); }
+.ck-item.done { background:rgba(90,122,94,0.15); border-color:rgba(90,122,94,0.3); }
+.ck-box { font-size:16px; flex-shrink:0; transition:all .15s; }
+.ck-lbl { font-size:13px; color:rgba(255,255,255,0.65); line-height:1.4; }
+.ck-item.done .ck-lbl { color:rgba(255,255,255,0.35); text-decoration:line-through; }
+.ck-item.done .ck-box { color:var(--sage); }
+
+/* ─── ANIMATIONS ─── */
+@keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+.fu { animation:fadeUp .4s ease forwards; }
+.d1 { animation-delay:.06s; opacity:0; }
+.d2 { animation-delay:.12s; opacity:0; }
+.d3 { animation-delay:.18s; opacity:0; }
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:var(--cream); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:1100px) { .metrics-4 { grid-template-columns:1fr 1fr; } }
+
+/* ── TABLET ── */
+@media(max-width:900px) {
+  .sidebar { width:220px; }
+  .main { margin-left:220px; }
+  .two-col { grid-template-columns:1fr; }
+  .metrics-4 { grid-template-columns:1fr 1fr; }
+  .content { padding:20px; }
+}
+
+/* ── MOBILE ── */
+@media(max-width:680px) {
+  /* Hide sidebar by default, show as overlay */
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform .28s ease;
+    z-index: 200;
+    width: 280px;
+    box-shadow: 4px 0 32px rgba(0,0,0,0.4);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .main { margin-left: 0; }
+
+  /* Topbar mobile */
+  .topbar { padding: 14px 16px; gap: 8px; }
+  .tl h1 { font-size: 17px; }
+  .tl p { display: none; }
+  .tr .pill { display: none; }
+
+  /* Hamburger button */
+  .hamburger {
+    display: flex !important;
+    align-items: center; justify-content: center;
+    width: 38px; height: 38px;
+    background: var(--text); border: none; border-radius: 10px;
+    cursor: pointer; flex-shrink: 0;
+    font-size: 18px; color: #fff;
+    order: -1;
+  }
+
+  /* Overlay backdrop */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 199;
+  }
+  .sidebar-backdrop.show { display: block; }
+
+  .content { padding: 14px; }
+  .two-col { grid-template-columns: 1fr; }
+  .metrics-4 { grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Entry banner */
+  .entry-banner { padding: 18px 16px; gap: 12px; }
+  .entry-banner .icon { font-size: 22px; }
+  .entry-banner h2 { font-size: 15px; }
+  .entry-banner p { font-size: 12px; }
+  .week-row { flex-wrap: wrap; }
+
+  /* Fields */
+  .fields-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Platform tabs */
+  .plat-tabs { gap: 4px; }
+  .plat-tab { padding: 7px 10px; font-size: 12px; }
+
+  /* Cards */
+  .card { padding: 16px; }
+
+  /* History table */
+  .history-wrap { font-size: 11px; }
+  th, td { padding: 8px 8px; }
+
+  /* Comp grid */
+  .comp-grid { grid-template-columns: 1fr; }
+
+  /* Chart area */
+  .chart-area { height: 150px; }
+
+  /* Save btn */
+  .save-btn { padding: 10px 18px; font-size: 13px; }
+
+  /* Met cards */
+  .met-val { font-size: 24px; }
+
+  /* Streak */
+  .streak-box { margin: 10px 10px 0; }
+
+  /* Guide metrics map */
+  .mm-row { flex-direction: column; gap: 4px; }
+  .mm-field { min-width: unset; }
+
+  /* Benchmark table */
+  #bench-table-wrap { overflow-x: auto; }
+
+  /* Modal */
+  #comp-history-modal { padding: 12px; align-items: flex-end; }
+  #comp-history-modal > div { border-radius: 18px 18px 0 0; max-height: 90vh; }
+
+  /* Bottom mobile nav */
+  .mobile-nav {
+    display: flex !important;
+  }
+}
+
+/* Hamburger hidden on desktop */
+.hamburger { display: none; }
+.mobile-nav { display: none; }
+
+/* ── MOBILE BOTTOM NAV ── */
+.mobile-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--text); border-top: 1px solid rgba(255,255,255,0.08);
+  z-index: 100; padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+  gap: 0;
+}
+.mn-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  cursor: pointer; padding: 6px 4px;
+  transition: all .15s; border: none; background: none;
+}
+.mn-icon { font-size: 20px; line-height: 1; }
+.mn-lbl { font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: .5px; }
+.mn-item.active .mn-lbl { color: var(--terra); }
+.mn-item:hover .mn-lbl { color: rgba(255,255,255,0.7); }
+
+@media(max-width:680px) {
+  .content { padding-bottom: 80px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ══ SIDEBAR BACKDROP ══ -->
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+<!-- ══ SIDEBAR ══ -->
+<!-- ── AUTH SCREEN ── -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">SXB RS DASHBOARD '26</div>
+    <div class="auth-sub">Tableau de bord social media</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">Connexion</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup')">Créer un compte</button>
+    </div>
+    <!-- LOGIN -->
+    <div id="auth-login">
+      <div class="auth-field">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="ton@email.com" />
+      </div>
+      <div class="auth-field">
+        <label>Mot de passe</label>
+        <input type="password" id="login-password" placeholder="••••••••" />
+      </div>
+      <button class="auth-btn" onclick="doLogin()">Se connecter →</button>
+      <div id="login-msg" class="auth-msg"></div>
+    </div>
+    <!-- SIGNUP -->
+    <div id="auth-signup" style="display:none">
+      <div class="auth-field">
+        <label>Email</label>
+        <input type="email" id="signup-email" placeholder="ton@email.com" />
+      </div>
+      <div class="auth-field">
+        <label>Mot de passe</label>
+        <input type="password" id="signup-password" placeholder="8 caractères minimum" />
+      </div>
+      <button class="auth-btn" onclick="doSignup()">Créer mon compte →</button>
+      <div id="signup-msg" class="auth-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── USER BAR ── -->
+<div class="auth-user-bar" id="user-bar" style="display:none">
+  <span class="auth-user-email" id="user-email-display"></span>
+  <button class="auth-logout-btn" onclick="doLogout()">Déconnexion</button>
+</div>
+
+<div class="sidebar" id="sidebar">
+  <div class="brand">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div class="brand-name" style="font-size:18px; letter-spacing:-0.5px;">SXB RS<span> '26</span></div>
+      <button onclick="closeSidebar()" style="display:none; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:4px 10px; color:rgba(255,255,255,0.5); font-size:18px; cursor:pointer; line-height:1;" id="sidebar-close">✕</button>
+    </div>
+    <div class="brand-sub">Dashboard Réseaux Sociaux</div>
+  </div>
+  <div class="niche-pill">
+    <div class="nl">🎯 Niche</div>
+    <div class="nv">E-commerce · Cadres +35 ans · Équilibre famille</div>
+  </div>
+  <div class="nav">
+    <div class="nav-lbl">Dashboard</div>
+    <div class="ni active" onclick="nav(this,'overview')"><span class="ni-icon">📊</span>Vue globale</div>
+    <div class="nav-lbl">Données réelles</div>
+    <div class="ni" onclick="nav(this,'entry')"><span class="ni-icon">✏️</span>Saisie hebdo</div>
+    <div class="ni" onclick="nav(this,'history')"><span class="ni-icon">📋</span>Historique</div>
+    <div class="ni" onclick="nav(this,'evolution')"><span class="ni-icon">📈</span>Évolution</div>
+    <div class="nav-lbl">Intelligence</div>
+    <div class="ni" onclick="nav(this,'veille')"><span class="ni-icon">👁️</span>Veille hebdo</div>
+    <div class="ni" onclick="nav(this,'competitors')"><span class="ni-icon">🔍</span>Créateurs suivis</div>
+    <div class="ni" onclick="nav(this,'aicontent')"><span class="ni-icon">🤖</span>Analyse IA Content</div>
+    <div class="nav-lbl">Aide</div>
+    <div class="ni" onclick="nav(this,'guide')"><span class="ni-icon">🗺️</span>Guide plateformes</div>
+  </div>
+  <div class="streak-box">
+    <div class="st">🔥 Streak de saisie</div>
+    <div class="sv" id="streak-val">0</div>
+    <div class="sl">semaines consécutives</div>
+  </div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div class="main">
+  <div class="topbar">
+    <button class="hamburger" onclick="openSidebar()" aria-label="Menu">☰</button>
+    <div class="tl">
+      <h1 id="page-title">Vue globale</h1>
+      <p id="page-sub">Données saisies manuellement · Réelles & vérifiées</p>
+    </div>
+    <div class="tr">
+      <div class="pill pill-sage"><div class="live-dot"></div>Données réelles</div>
+      <div class="pill pill-terra" id="last-entry-pill">Aucune saisie</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══════ OVERVIEW ══════ -->
+    <div id="sec-overview" class="section active">
+
+      <div id="ov-empty" class="empty-state fu">
+        <div class="es-icon">📝</div>
+        <h3>Commence par saisir tes premières données</h3>
+        <p>Va dans <strong>Saisie hebdo</strong> pour entrer tes métriques de cette semaine. L'historique et les graphiques s'alimenteront automatiquement.</p>
+        <button class="save-btn" style="margin:20px auto 0; display:flex;" onclick="goToEntry()">✏️ Faire ma première saisie</button>
+      </div>
+
+      <div id="ov-content" style="display:none;">
+        <div class="metrics-4 fu" id="ov-metrics"></div>
+        <div class="two-col fu d1">
+          <div class="card" id="ov-best-card">
+            <div class="sec-h">🏆 Meilleure semaine</div>
+            <div id="ov-best-content"></div>
+          </div>
+          <div class="card" id="ov-trend-card">
+            <div class="sec-h">📈 Tendances globales</div>
+            <div id="ov-trend-content"></div>
+          </div>
+        </div>
+        <div class="card fu d2">
+          <div class="sec-h">📊 Évolution followers — toutes plateformes</div>
+          <div class="sec-sub">Les 8 dernières semaines saisies</div>
+          <div class="chart-area">
+            <canvas id="ov-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════ SAISIE ══════ -->
+    <div id="sec-entry" class="section">
+
+      <div class="entry-banner fu">
+        <div class="icon">✏️</div>
+        <div class="entry-banner-body">
+          <h2>Saisie hebdomadaire</h2>
+          <p>Entre tes métriques une fois par semaine — idéalement le lundi matin. L'app calcule automatiquement tes évolutions et génère tes graphiques.</p>
+          <div class="week-row">
+            <label>Semaine du</label>
+            <input type="week" id="week-picker" class="week-input" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Platform tabs -->
+      <div class="plat-tabs fu d1">
+        <div class="plat-tab active" data-p="ig" onclick="switchPlat(this,'ig')">📸 Instagram</div>
+        <div class="plat-tab" data-p="li" onclick="switchPlat(this,'li')">💼 LinkedIn</div>
+        <div class="plat-tab" data-p="tt" onclick="switchPlat(this,'tt')">🎵 TikTok</div>
+        <div class="plat-tab" data-p="yt" onclick="switchPlat(this,'yt')">▶️ YouTube</div>
+      </div>
+
+      <!-- INSTAGRAM -->
+      <div id="form-ig" class="card card-warm fu d1" style="margin-bottom:16px;">
+        <div class="sec-h" style="color:var(--terra); margin-bottom:4px;">📸 Instagram</div>
+        <div class="sec-sub">Trouve ces chiffres dans : Instagram → Professionnel → Statistiques</div>
+        <div class="fields-grid">
+          <div class="field-group">
+            <label>Abonnés total</label>
+            <input type="number" id="ig-followers" placeholder="ex: 9400" />
+            <span class="field-hint">Profil → Abonnés</span>
+          </div>
+          <div class="field-group">
+            <label>Taux d'engagement (%)</label>
+            <input type="number" step="0.1" id="ig-engage" placeholder="ex: 5.2" />
+            <span class="field-hint">Stat. → Interactions / Portée × 100</span>
+          </div>
+          <div class="field-group">
+            <label>Portée hebdo</label>
+            <input type="number" id="ig-reach" placeholder="ex: 6100" />
+            <span class="field-hint">Stat. → Comptes touchés cette semaine</span>
+          </div>
+          <div class="field-group">
+            <label>Impressions hebdo</label>
+            <input type="number" id="ig-impressions" placeholder="ex: 14000" />
+            <span class="field-hint">Stat. → Impressions (7 derniers jours)</span>
+          </div>
+          <div class="field-group">
+            <label>Nouveaux abonnés</label>
+            <input type="number" id="ig-new" placeholder="ex: 120" />
+            <span class="field-hint">Stat. → Abonnés gagnés cette semaine</span>
+          </div>
+          <div class="field-group">
+            <label>Clics lien bio</label>
+            <input type="number" id="ig-clicks" placeholder="ex: 45" />
+            <span class="field-hint">Stat. → Visites du site / lien</span>
+          </div>
+          <div class="field-group">
+            <label>Leads générés</label>
+            <input type="number" id="ig-leads" placeholder="ex: 8" />
+            <span class="field-hint">DM entrants qualifiés + formulaires</span>
+          </div>
+          <div class="field-group">
+            <label>Posts publiés</label>
+            <input type="number" id="ig-posts" placeholder="ex: 5" />
+            <span class="field-hint">Nombre total de publications</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- LINKEDIN -->
+      <div id="form-li" class="card card-warm fu d1" style="margin-bottom:16px; display:none;">
+        <div class="sec-h" style="color:var(--blue); margin-bottom:4px;">💼 LinkedIn</div>
+        <div class="sec-sub">Trouve ces chiffres dans : LinkedIn → Moi → Voir mes statistiques</div>
+        <div class="fields-grid">
+          <div class="field-group">
+            <label>Connexions / abonnés</label>
+            <input type="number" id="li-followers" placeholder="ex: 5200" />
+            <span class="field-hint">Profil → Connexions</span>
+          </div>
+          <div class="field-group">
+            <label>Impressions hebdo</label>
+            <input type="number" id="li-impressions" placeholder="ex: 28000" />
+            <span class="field-hint">Statistiques → Impressions</span>
+          </div>
+          <div class="field-group">
+            <label>Taux d'engagement (%)</label>
+            <input type="number" step="0.1" id="li-engage" placeholder="ex: 7.8" />
+            <span class="field-hint">Interactions / Impressions × 100</span>
+          </div>
+          <div class="field-group">
+            <label>Nouveaux abonnés</label>
+            <input type="number" id="li-new" placeholder="ex: 95" />
+            <span class="field-hint">Statistiques → Nouveaux abonnés</span>
+          </div>
+          <div class="field-group">
+            <label>Leads générés</label>
+            <input type="number" id="li-leads" placeholder="ex: 20" />
+            <span class="field-hint">DM entrants qualifiés cette semaine</span>
+          </div>
+          <div class="field-group">
+            <label>Posts publiés</label>
+            <input type="number" id="li-posts" placeholder="ex: 3" />
+            <span class="field-hint">Publications cette semaine</span>
+          </div>
+          <div class="field-group">
+            <label>Commentaires reçus</label>
+            <input type="number" id="li-comments" placeholder="ex: 42" />
+            <span class="field-hint">Total commentaires sur tes posts</span>
+          </div>
+          <div class="field-group">
+            <label>Partages obtenus</label>
+            <input type="number" id="li-shares" placeholder="ex: 18" />
+            <span class="field-hint">Reposts de tes contenus</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIKTOK -->
+      <div id="form-tt" class="card card-warm fu d1" style="margin-bottom:16px; display:none;">
+        <div class="sec-h" style="color:var(--tt); margin-bottom:4px;">🎵 TikTok</div>
+        <div class="sec-sub">Trouve ces chiffres dans : TikTok → Créateur → Tableau de bord → Analytics</div>
+        <div class="fields-grid">
+          <div class="field-group">
+            <label>Abonnés total</label>
+            <input type="number" id="tt-followers" placeholder="ex: 14600" />
+            <span class="field-hint">Profil → Abonnés</span>
+          </div>
+          <div class="field-group">
+            <label>Vues hebdo total</label>
+            <input type="number" id="tt-views" placeholder="ex: 48000" />
+            <span class="field-hint">Analytics → Vues vidéo (7 jours)</span>
+          </div>
+          <div class="field-group">
+            <label>Taux de complétion (%)</label>
+            <input type="number" step="0.1" id="tt-completion" placeholder="ex: 42" />
+            <span class="field-hint">Analytics → Temps de lecture moyen</span>
+          </div>
+          <div class="field-group">
+            <label>Nouveaux abonnés</label>
+            <input type="number" id="tt-new" placeholder="ex: -50" />
+            <span class="field-hint">Peut être négatif (churn)</span>
+          </div>
+          <div class="field-group">
+            <label>Taux d'engagement (%)</label>
+            <input type="number" step="0.1" id="tt-engage" placeholder="ex: 6.1" />
+            <span class="field-hint">Likes+Comm+Partages / Vues × 100</span>
+          </div>
+          <div class="field-group">
+            <label>Vidéos publiées</label>
+            <input type="number" id="tt-posts" placeholder="ex: 4" />
+          </div>
+          <div class="field-group">
+            <label>Leads générés</label>
+            <input type="number" id="tt-leads" placeholder="ex: 5" />
+            <span class="field-hint">DM qualifiés ou clics lien bio</span>
+          </div>
+          <div class="field-group">
+            <label>Meilleure vidéo (vues)</label>
+            <input type="number" id="tt-top" placeholder="ex: 120000" />
+            <span class="field-hint">Vues de ta vidéo la plus performante</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- YOUTUBE -->
+      <div id="form-yt" class="card card-warm fu d1" style="margin-bottom:16px; display:none;">
+        <div class="sec-h" style="color:var(--yt); margin-bottom:4px;">▶️ YouTube</div>
+        <div class="sec-sub">Trouve ces chiffres dans : YouTube Studio → Analytiques → 7 derniers jours</div>
+        <div class="fields-grid">
+          <div class="field-group">
+            <label>Abonnés total</label>
+            <input type="number" id="yt-followers" placeholder="ex: 1800" />
+            <span class="field-hint">Studio → Résumé du canal</span>
+          </div>
+          <div class="field-group">
+            <label>Vues hebdo</label>
+            <input type="number" id="yt-views" placeholder="ex: 1200" />
+            <span class="field-hint">Analytiques → Vues (7 jours)</span>
+          </div>
+          <div class="field-group">
+            <label>Rétention moyenne (%)</label>
+            <input type="number" step="0.1" id="yt-retention" placeholder="ex: 58" />
+            <span class="field-hint">Analytiques → Durée de visionnage %</span>
+          </div>
+          <div class="field-group">
+            <label>Heures de visionnage</label>
+            <input type="number" step="0.1" id="yt-watchtime" placeholder="ex: 42" />
+            <span class="field-hint">Analytiques → Durée de visionnage (h)</span>
+          </div>
+          <div class="field-group">
+            <label>Nouveaux abonnés</label>
+            <input type="number" id="yt-new" placeholder="ex: 45" />
+            <span class="field-hint">Analytiques → Abonnés gagnés</span>
+          </div>
+          <div class="field-group">
+            <label>Vidéos publiées</label>
+            <input type="number" id="yt-posts" placeholder="ex: 1" />
+          </div>
+          <div class="field-group">
+            <label>Leads générés</label>
+            <input type="number" id="yt-leads" placeholder="ex: 8" />
+            <span class="field-hint">Clics description + DM qualifiés</span>
+          </div>
+          <div class="field-group">
+            <label>Clics CTA (description)</label>
+            <input type="number" id="yt-cta" placeholder="ex: 62" />
+            <span class="field-hint">Analytiques → Cartes + liens description</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SAVE -->
+      <div class="fu d2" style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+        <button class="save-btn" onclick="saveEntry()">💾 Sauvegarder cette semaine</button>
+        <div class="saved-toast" id="saved-toast">✅ Données sauvegardées !</div>
+      </div>
+
+      <!-- BACKUP REMINDER -->
+      <div style="margin-top:20px; background:linear-gradient(135deg,#fffcf7,#fff8ee); border:1.5px solid var(--border2); border-radius:14px; padding:18px 22px; display:flex; align-items:flex-start; gap:14px;">
+        <div style="font-size:26px; flex-shrink:0;">💡</div>
+        <div>
+          <div style="font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px;">Rappel sauvegarde — à faire après chaque saisie</div>
+          <div style="font-size:12px; color:var(--dim); line-height:1.7; margin-bottom:12px;">Après avoir sauvegardé ta semaine, exporte ton CSV et range-le dans <strong>Google Drive</strong> ou <strong>iCloud</strong>. En cas de perte (cache vidé, changement d'ordi), tu réimportes en 10 secondes.</div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="exportCSV()">⬇️ Exporter CSV</button>
+            <label style="display:inline-flex; align-items:center; gap:7px; background:var(--warm); border:1.5px solid var(--border); border-radius:10px; padding:9px 16px; cursor:pointer; font-size:12px; font-weight:600; color:var(--dim); transition:all .15s;" onmouseover="this.style.borderColor='var(--terra)'" onmouseout="this.style.borderColor='var(--border)'">
+              ⬆️ Importer un CSV
+              <input type="file" accept=".csv" onchange="importCSV(event)" style="display:none;" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════ HISTORIQUE ══════ -->
+    <div id="sec-history" class="section">
+
+      <div class="card fu" style="margin-bottom:20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <div class="sec-h">📋 Historique complet</div>
+            <div class="sec-sub">Toutes tes saisies — clique sur une ligne pour voir le détail</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <select id="hist-plat" onchange="renderHistory()" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:8px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer;">
+              <option value="all">Toutes plateformes</option>
+              <option value="ig">📸 Instagram</option>
+              <option value="li">💼 LinkedIn</option>
+              <option value="tt">🎵 TikTok</option>
+              <option value="yt">▶️ YouTube</option>
+            </select>
+            <button onclick="exportCSV()" style="background:var(--terra); border:none; border-radius:9px; padding:8px 14px; font-family:Outfit,sans-serif; font-size:12px; font-weight:700; color:#fff; cursor:pointer; transition:all .15s;" onmouseover="this.style.background='#b05526'" onmouseout="this.style.background='var(--terra)'">⬇️ Exporter CSV</button>
+            <label style="display:inline-flex; align-items:center; gap:6px; background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:8px 13px; font-family:Outfit,sans-serif; font-size:12px; font-weight:600; color:var(--dim); cursor:pointer; transition:all .15s;" onmouseover="this.style.borderColor='var(--terra)'" onmouseout="this.style.borderColor='var(--border)'">
+              ⬆️ Importer CSV
+              <input type="file" accept=".csv" onchange="importCSV(event)" style="display:none;" />
+            </label>
+          </div>
+        </div>
+        <div class="history-wrap">
+          <div id="hist-empty" class="empty-state" style="display:none;">
+            <div class="es-icon">🗂️</div>
+            <h3>Aucune donnée encore</h3>
+            <p>Fais ta première saisie dans l'onglet <strong>Saisie hebdo</strong> pour voir l'historique apparaître ici.</p>
+          </div>
+          <table id="hist-table">
+            <thead>
+              <tr>
+                <th>Semaine</th>
+                <th>Plateforme</th>
+                <th>Abonnés</th>
+                <th>Δ Abonnés</th>
+                <th>Engagement</th>
+                <th>Leads</th>
+                <th>Posts</th>
+                <th>Portée/Vues</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="hist-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════ ÉVOLUTION ══════ -->
+    <div id="sec-evolution" class="section">
+
+      <div id="evo-empty" class="empty-state fu">
+        <div class="es-icon">📈</div>
+        <h3>Les graphiques apparaîtront ici</h3>
+        <p>Saisis au moins 2 semaines de données pour voir tes courbes d'évolution.</p>
+        <button class="save-btn" style="margin:20px auto 0; display:flex;" onclick="goToEntry()">✏️ Saisir mes données</button>
+      </div>
+
+      <div id="evo-content" style="display:none;">
+
+        <div class="two-col fu">
+          <div class="card">
+            <div class="sec-h">📸 Instagram — Followers</div>
+            <div class="chart-area"><canvas id="chart-ig-f"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="sec-h">💼 LinkedIn — Followers</div>
+            <div class="chart-area"><canvas id="chart-li-f"></canvas></div>
+          </div>
+        </div>
+
+        <div class="two-col fu d1">
+          <div class="card">
+            <div class="sec-h">🎵 TikTok — Followers</div>
+            <div class="chart-area"><canvas id="chart-tt-f"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="sec-h">▶️ YouTube — Followers</div>
+            <div class="chart-area"><canvas id="chart-yt-f"></canvas></div>
+          </div>
+        </div>
+
+        <div class="two-col fu d2">
+          <div class="card">
+            <div class="sec-h">🎯 Leads générés par semaine</div>
+            <div class="sec-sub">Total cumulé toutes plateformes</div>
+            <div class="chart-area"><canvas id="chart-leads"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="sec-h">💪 Engagement moyen (%)</div>
+            <div class="sec-sub">Évolution par plateforme</div>
+            <div class="chart-area"><canvas id="chart-engage"></canvas></div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ══════ GUIDE ══════ -->
+    <div id="sec-guide" class="section">
+
+      <!-- Header -->
+      <div class="entry-banner fu" style="margin-bottom:28px;">
+        <div class="icon">🗺️</div>
+        <div class="entry-banner-body">
+          <h2>Guide — Où trouver tes stats ?</h2>
+          <p>Pour chaque plateforme, le chemin exact à suivre sur ton téléphone ou ordinateur pour récupérer chaque métrique à saisir dans l'app.</p>
+        </div>
+      </div>
+
+      <!-- INSTAGRAM -->
+      <div class="card fu d1" style="margin-bottom:20px; border-left:4px solid var(--ig);">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+          <div style="font-size:28px;">📸</div>
+          <div>
+            <div style="font-family:'Playfair Display',serif; font-size:19px; font-weight:700; color:var(--ig);">Instagram</div>
+            <div style="font-size:12px; color:var(--muted);">Prérequis : compte Professionnel ou Créateur activé</div>
+          </div>
+          <div style="margin-left:auto;">
+            <span style="font-size:11px; font-weight:700; background:var(--sage-l); color:var(--sage); padding:4px 12px; border-radius:20px; border:1px solid rgba(90,122,94,0.3);">📱 Application mobile</span>
+          </div>
+        </div>
+
+        <!-- Step by step -->
+        <div style="display:flex; flex-direction:column; gap:0;">
+
+          <div class="guide-step">
+            <div class="gs-num">1</div>
+            <div class="gs-body">
+              <div class="gs-title">Active le compte Professionnel <span class="gs-opt">si pas encore fait</span></div>
+              <div class="gs-path">⚙️ Paramètres → Compte → Passer en compte professionnel → Créateur</div>
+              <div class="gs-note">Gratuit. Te donne accès à toutes les statistiques.</div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num">2</div>
+            <div class="gs-body">
+              <div class="gs-title">Ouvre ton Tableau de bord professionnel</div>
+              <div class="gs-path">Ton profil → Bouton <strong>"Tableau de bord professionnel"</strong> (sous ta bio)</div>
+              <div class="gs-note">S'il n'apparaît pas, va dans ⚙️ Paramètres → Outils créateur → Tableau de bord.</div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num">3</div>
+            <div class="gs-body">
+              <div class="gs-title">Accède aux statistiques complètes</div>
+              <div class="gs-path">Tableau de bord → <strong>"Voir les informations"</strong> ou <strong>"Statistiques"</strong></div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num">4</div>
+            <div class="gs-body">
+              <div class="gs-title">Sélectionne la période</div>
+              <div class="gs-path">En haut → sélecteur de période → <strong>"7 derniers jours"</strong></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Metrics map -->
+        <div style="margin-top:20px; padding-top:20px; border-top:1px solid var(--border);">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--muted); margin-bottom:12px;">Où trouver chaque chiffre</div>
+          <div class="metrics-map">
+            <div class="mm-row"><div class="mm-field">Abonnés total</div><div class="mm-arrow">→</div><div class="mm-where">Ton profil → chiffre sous "Abonnés"</div></div>
+            <div class="mm-row"><div class="mm-field">Nouveaux abonnés</div><div class="mm-arrow">→</div><div class="mm-where">Statistiques → onglet "Audience" → "Abonnés gagnés"</div></div>
+            <div class="mm-row"><div class="mm-field">Portée hebdo</div><div class="mm-arrow">→</div><div class="mm-where">Statistiques → onglet "Aperçu" → "Comptes touchés"</div></div>
+            <div class="mm-row"><div class="mm-field">Impressions</div><div class="mm-arrow">→</div><div class="mm-where">Statistiques → onglet "Aperçu" → "Impressions"</div></div>
+            <div class="mm-row"><div class="mm-field">Taux d'engagement</div><div class="mm-arrow">→</div><div class="mm-where">Calcul : Interactions ÷ Portée × 100 (ex : 320 ÷ 6100 × 100 = 5.2%)</div></div>
+            <div class="mm-row"><div class="mm-field">Clics lien bio</div><div class="mm-arrow">→</div><div class="mm-where">Statistiques → "Activité" → "Clics sur le lien du site"</div></div>
+            <div class="mm-row"><div class="mm-field">Leads générés</div><div class="mm-arrow">→</div><div class="mm-where">Manuel : compte tes DM entrants qualifiés de la semaine</div></div>
+          </div>
+        </div>
+
+        <div class="gs-tip">💡 <strong>Astuce :</strong> Fais une capture d'écran de l'écran "Aperçu" chaque lundi avant de saisir. Tu auras tout sous les yeux.</div>
+      </div>
+
+      <!-- LINKEDIN -->
+      <div class="card fu d2" style="margin-bottom:20px; border-left:4px solid var(--li);">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+          <div style="font-size:28px;">💼</div>
+          <div>
+            <div style="font-family:'Playfair Display',serif; font-size:19px; font-weight:700; color:var(--li);">LinkedIn</div>
+            <div style="font-size:12px; color:var(--muted);">Prérequis : aucun — tout profil standard a accès aux analytiques</div>
+          </div>
+          <div style="margin-left:auto;">
+            <span style="font-size:11px; font-weight:700; background:var(--blue-l); color:var(--blue); padding:4px 12px; border-radius:20px; border:1px solid rgba(58,107,138,0.3);">💻 Web ou mobile</span>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:0;">
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:var(--blue-l); color:var(--li);">1</div>
+            <div class="gs-body">
+              <div class="gs-title">Va sur ton profil</div>
+              <div class="gs-path">Clique sur ta photo → <strong>"Voir le profil"</strong></div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:var(--blue-l); color:var(--li);">2</div>
+            <div class="gs-body">
+              <div class="gs-title">Ouvre tes analytiques</div>
+              <div class="gs-path">Sur ton profil → section <strong>"Analytiques"</strong> → clique sur n'importe quelle stat pour tout voir</div>
+              <div class="gs-note">Sur mobile : fais défiler sous ta photo de profil.</div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:var(--blue-l); color:var(--li);">3</div>
+            <div class="gs-body">
+              <div class="gs-title">Accède aux stats de tes posts</div>
+              <div class="gs-path">Analytiques → <strong>"Impressions des publications"</strong> → période : <strong>7 jours</strong></div>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="margin-top:20px; padding-top:20px; border-top:1px solid var(--border);">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--muted); margin-bottom:12px;">Où trouver chaque chiffre</div>
+          <div class="metrics-map">
+            <div class="mm-row"><div class="mm-field">Connexions / abonnés</div><div class="mm-arrow">→</div><div class="mm-where">Ton profil → "Connexions" (en haut)</div></div>
+            <div class="mm-row"><div class="mm-field">Nouveaux abonnés</div><div class="mm-arrow">→</div><div class="mm-where">Analytiques → "Abonnés" → variation sur 7 jours</div></div>
+            <div class="mm-row"><div class="mm-field">Impressions hebdo</div><div class="mm-arrow">→</div><div class="mm-where">Analytiques → "Impressions des publications" → 7 derniers jours</div></div>
+            <div class="mm-row"><div class="mm-field">Taux d'engagement</div><div class="mm-arrow">→</div><div class="mm-where">Calcul manuel : (Likes + Commentaires + Partages) ÷ Impressions × 100</div></div>
+            <div class="mm-row"><div class="mm-field">Commentaires</div><div class="mm-arrow">→</div><div class="mm-where">Analytiques → "Interactions" → Commentaires (7 jours)</div></div>
+            <div class="mm-row"><div class="mm-field">Partages</div><div class="mm-arrow">→</div><div class="mm-where">Analytiques → "Interactions" → Republications (7 jours)</div></div>
+            <div class="mm-row"><div class="mm-field">Leads générés</div><div class="mm-arrow">→</div><div class="mm-where">Manuel : compte tes DM entrants qualifiés de la semaine</div></div>
+          </div>
+        </div>
+
+        <div class="gs-tip" style="border-color:rgba(58,107,138,0.3); background:var(--blue-l);">💡 <strong>Astuce LinkedIn :</strong> note aussi tes 2-3 meilleurs posts de la semaine (titre + impressions). Ça t'aide à identifier tes formats gagnants dans le temps.</div>
+      </div>
+
+      <!-- TIKTOK -->
+      <div class="card fu d2" style="margin-bottom:20px; border-left:4px solid #555;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+          <div style="font-size:28px;">🎵</div>
+          <div>
+            <div style="font-family:'Playfair Display',serif; font-size:19px; font-weight:700; color:var(--tt);">TikTok</div>
+            <div style="font-size:12px; color:var(--muted);">Prérequis : compte Créateur ou Business (gratuit à activer)</div>
+          </div>
+          <div style="margin-left:auto;">
+            <span style="font-size:11px; font-weight:700; background:rgba(45,37,32,0.07); color:var(--tt); padding:4px 12px; border-radius:20px; border:1px solid rgba(45,37,32,0.15);">📱 Application mobile</span>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:0;">
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:rgba(45,37,32,0.08); color:var(--tt);">1</div>
+            <div class="gs-body">
+              <div class="gs-title">Active le compte Créateur <span class="gs-opt">si pas encore fait</span></div>
+              <div class="gs-path">☰ Menu → Paramètres → Compte → <strong>"Passer en compte créateur"</strong></div>
+              <div class="gs-note">Gratuit. Nécessaire pour accéder aux analytics détaillés.</div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:rgba(45,37,32,0.08); color:var(--tt);">2</div>
+            <div class="gs-body">
+              <div class="gs-title">Accède aux Outils créateur</div>
+              <div class="gs-path">Ton profil → ☰ (coin haut droit) → <strong>"Outils créateur"</strong></div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:rgba(45,37,32,0.08); color:var(--tt);">3</div>
+            <div class="gs-body">
+              <div class="gs-title">Ouvre Analytics</div>
+              <div class="gs-path">Outils créateur → <strong>"Analytics"</strong> → onglet <strong>"Vue d'ensemble"</strong></div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:rgba(45,37,32,0.08); color:var(--tt);">4</div>
+            <div class="gs-body">
+              <div class="gs-title">Sélectionne la bonne période</div>
+              <div class="gs-path">En haut → <strong>"7 derniers jours"</strong></div>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="margin-top:20px; padding-top:20px; border-top:1px solid var(--border);">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--muted); margin-bottom:12px;">Où trouver chaque chiffre</div>
+          <div class="metrics-map">
+            <div class="mm-row"><div class="mm-field">Abonnés total</div><div class="mm-arrow">→</div><div class="mm-where">Ton profil → chiffre "Abonnés"</div></div>
+            <div class="mm-row"><div class="mm-field">Nouveaux abonnés</div><div class="mm-arrow">→</div><div class="mm-where">Analytics → Vue d'ensemble → "Abonnés" (variation +/-)</div></div>
+            <div class="mm-row"><div class="mm-field">Vues hebdo</div><div class="mm-arrow">→</div><div class="mm-where">Analytics → Vue d'ensemble → "Vues vidéo"</div></div>
+            <div class="mm-row"><div class="mm-field">Taux de complétion</div><div class="mm-arrow">→</div><div class="mm-where">Analytics → onglet "Contenu" → clique une vidéo → "Temps de lecture moyen" ÷ durée × 100</div></div>
+            <div class="mm-row"><div class="mm-field">Taux d'engagement</div><div class="mm-arrow">→</div><div class="mm-where">Calcul : (Likes + Commentaires + Partages) ÷ Vues × 100</div></div>
+            <div class="mm-row"><div class="mm-field">Meilleure vidéo</div><div class="mm-arrow">→</div><div class="mm-where">Analytics → onglet "Contenu" → vidéo en haut = la plus vue cette semaine</div></div>
+            <div class="mm-row"><div class="mm-field">Leads générés</div><div class="mm-arrow">→</div><div class="mm-where">Manuel : DM qualifiés + clics sur lien bio</div></div>
+          </div>
+        </div>
+
+        <div class="gs-tip" style="border-color:rgba(45,37,32,0.15); background:rgba(45,37,32,0.04);">💡 <strong>Astuce TikTok :</strong> le taux de complétion est l'indicateur le plus important pour l'algorithme. Si tu es sous 40%, tes vidéos sont trop longues ou l'accroche n'est pas assez forte.</div>
+      </div>
+
+      <!-- YOUTUBE -->
+      <div class="card fu d3" style="margin-bottom:20px; border-left:4px solid var(--yt);">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+          <div style="font-size:28px;">▶️</div>
+          <div>
+            <div style="font-family:'Playfair Display',serif; font-size:19px; font-weight:700; color:var(--yt);">YouTube</div>
+            <div style="font-size:12px; color:var(--muted);">Prérequis : avoir une chaîne YouTube liée à ton compte Google</div>
+          </div>
+          <div style="margin-left:auto;">
+            <span style="font-size:11px; font-weight:700; background:rgba(160,32,32,0.08); color:var(--yt); padding:4px 12px; border-radius:20px; border:1px solid rgba(160,32,32,0.2);">💻 studio.youtube.com</span>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:0;">
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:rgba(160,32,32,0.08); color:var(--yt);">1</div>
+            <div class="gs-body">
+              <div class="gs-title">Va sur YouTube Studio</div>
+              <div class="gs-path">Navigateur → <strong>studio.youtube.com</strong> → connecte-toi avec ton compte Google</div>
+              <div class="gs-note">Sur mobile : app "YouTube Studio" (à télécharger séparément).</div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:rgba(160,32,32,0.08); color:var(--yt);">2</div>
+            <div class="gs-body">
+              <div class="gs-title">Ouvre les Analytiques</div>
+              <div class="gs-path">Menu gauche → <strong>"Analytiques"</strong></div>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="gs-num" style="background:rgba(160,32,32,0.08); color:var(--yt);">3</div>
+            <div class="gs-body">
+              <div class="gs-title">Sélectionne la période</div>
+              <div class="gs-path">En haut à droite → <strong>"7 derniers jours"</strong></div>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="margin-top:20px; padding-top:20px; border-top:1px solid var(--border);">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--muted); margin-bottom:12px;">Où trouver chaque chiffre</div>
+          <div class="metrics-map">
+            <div class="mm-row"><div class="mm-field">Abonnés total</div><div class="mm-arrow">→</div><div class="mm-where">Studio → Résumé (page d'accueil) → "Abonnés actuels"</div></div>
+            <div class="mm-row"><div class="mm-field">Nouveaux abonnés</div><div class="mm-arrow">→</div><div class="mm-where">Analytiques → onglet "Audience" → "Abonnés gagnés"</div></div>
+            <div class="mm-row"><div class="mm-field">Vues hebdo</div><div class="mm-arrow">→</div><div class="mm-where">Analytiques → onglet "Aperçu" → "Vues"</div></div>
+            <div class="mm-row"><div class="mm-field">Heures de visionnage</div><div class="mm-arrow">→</div><div class="mm-where">Analytiques → onglet "Aperçu" → "Durée de visionnage (heures)"</div></div>
+            <div class="mm-row"><div class="mm-field">Rétention moyenne</div><div class="mm-arrow">→</div><div class="mm-where">Analytiques → onglet "Engagement" → "Durée de visionnage moyenne (%)"</div></div>
+            <div class="mm-row"><div class="mm-field">Clics CTA</div><div class="mm-arrow">→</div><div class="mm-where">Analytiques → onglet "Engagement" → "Clics sur les fiches / écrans de fin"</div></div>
+            <div class="mm-row"><div class="mm-field">Leads générés</div><div class="mm-arrow">→</div><div class="mm-where">Manuel : clics lien description + DM / commentaires qualifiés</div></div>
+          </div>
+        </div>
+
+        <div class="gs-tip" style="border-color:rgba(160,32,32,0.2); background:rgba(160,32,32,0.05);">💡 <strong>Astuce YouTube :</strong> la rétention moyenne est l'indicateur roi. Au-dessus de 50% = excellente vidéo. En dessous de 35% = revois ton intro (les 30 premières secondes font tout).</div>
+      </div>
+
+      <!-- CHECKLIST RITUEL -->
+      <div class="card fu d3" style="background:linear-gradient(135deg,var(--text),#2d231a); border:none;">
+        <div style="font-family:'Playfair Display',serif; font-size:18px; font-weight:700; color:#fff; margin-bottom:6px;">🗓️ Ton rituel du lundi — 20 min chrono</div>
+        <div style="font-size:12px; color:rgba(255,255,255,0.45); margin-bottom:20px;">Suis ces étapes dans l'ordre chaque lundi matin pour une saisie sans friction</div>
+        <div style="display:flex; flex-direction:column; gap:8px;" id="checklist">
+          <div class="ck-item" onclick="toggleCk(this)"><span class="ck-box">☐</span><span class="ck-lbl">Ouvre Instagram → Tableau de bord pro → capture d'écran des stats 7j</span></div>
+          <div class="ck-item" onclick="toggleCk(this)"><span class="ck-box">☐</span><span class="ck-lbl">Ouvre LinkedIn → Analytiques → capture d'écran impressions + abonnés</span></div>
+          <div class="ck-item" onclick="toggleCk(this)"><span class="ck-box">☐</span><span class="ck-lbl">Ouvre TikTok → Outils créateur → Analytics → capture vue d'ensemble</span></div>
+          <div class="ck-item" onclick="toggleCk(this)"><span class="ck-box">☐</span><span class="ck-lbl">Ouvre YouTube Studio → Analytiques → capture aperçu 7 jours</span></div>
+          <div class="ck-item" onclick="toggleCk(this)"><span class="ck-box">☐</span><span class="ck-lbl">Compte tes DM qualifiés de la semaine sur chaque plateforme</span></div>
+          <div class="ck-item" onclick="toggleCk(this)"><span class="ck-box">☐</span><span class="ck-lbl">Saisie hebdo → entre les chiffres plateforme par plateforme</span></div>
+          <div class="ck-item" onclick="toggleCk(this)"><span class="ck-box">☐</span><span class="ck-lbl">Clique "Sauvegarder"</span></div>
+          <div class="ck-item" onclick="toggleCk(this)"><span class="ck-box">☐</span><span class="ck-lbl">Clique "Exporter CSV" → dépose dans Google Drive</span></div>
+        </div>
+        <button onclick="resetChecklist()" style="margin-top:16px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 16px; color:rgba(255,255,255,0.5); font-family:Outfit,sans-serif; font-size:12px; cursor:pointer;">↺ Réinitialiser la checklist</button>
+      </div>
+
+    </div>
+
+    <!-- ══════ VEILLE ══════ -->
+    <div id="sec-veille" class="section">
+
+      <div class="entry-banner fu" style="margin-bottom:24px;">
+        <div class="icon">👁️</div>
+        <div class="entry-banner-body">
+          <h2>Veille hebdomadaire</h2>
+          <p>Suis les comptes clés de ta niche, note les tendances et garde une trace de ce qui marche chez les autres. Tout est sauvegardé localement.</p>
+        </div>
+      </div>
+
+      <!-- Comptes suivis -->
+      <div class="two-col fu d1" style="margin-bottom:20px;">
+
+        <div class="card" style="padding:0; overflow:hidden;">
+          <div style="padding:18px 20px; background:var(--warm); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
+            <div>
+              <div class="sec-h" style="margin-bottom:0;">📌 Comptes que je suis</div>
+              <div style="font-size:11px; color:var(--muted); margin-top:2px;">Sauvegardés dans le navigateur</div>
+            </div>
+            <div id="watch-count" style="font-family:'Playfair Display',serif; font-size:22px; font-weight:900; color:var(--terra);">0</div>
+          </div>
+          <div id="watch-list" style="max-height:360px; overflow-y:auto;"></div>
+          <div style="padding:12px 16px; border-top:1px solid var(--border); background:var(--warm); display:flex; gap:8px;">
+            <input id="watch-handle" placeholder="@compte ou nom..." style="flex:1; background:var(--card); border:1.5px solid var(--border); border-radius:9px; padding:8px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none;" onkeydown="if(event.key==='Enter') addWatchAccount()" />
+            <select id="watch-plat" style="background:var(--card); border:1.5px solid var(--border); border-radius:9px; padding:8px 10px; font-family:Outfit,sans-serif; font-size:12px; color:var(--text); outline:none; cursor:pointer;">
+              <option value="ig">📸 IG</option>
+              <option value="li">💼 LI</option>
+              <option value="tt">🎵 TT</option>
+              <option value="yt">▶️ YT</option>
+            </select>
+            <button class="save-btn" style="padding:8px 14px; font-size:12px;" onclick="addWatchAccount()">+ Ajouter</button>
+          </div>
+        </div>
+
+        <div class="card" style="padding:0; overflow:hidden;">
+          <div style="padding:18px 20px; background:var(--warm); border-bottom:1px solid var(--border);">
+            <div class="sec-h" style="margin-bottom:0;">📝 Notes de veille</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Tendances, formats, idées remarquées cette semaine</div>
+          </div>
+          <div style="padding:16px;">
+            <textarea id="veille-notes" placeholder="Ex: Le format 'avant/après' cartonne chez @X cette semaine...&#10;Julie M. teste les carrousels avec des stats chiffrées, fort engagement...&#10;Tendance : les hooks 'J'étais cadre...' font exploser le reach..." style="width:100%; height:200px; background:var(--warm); border:1.5px solid var(--border); border-radius:10px; padding:12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; resize:vertical; line-height:1.7;" oninput="saveVeilleNotes()"></textarea>
+          </div>
+          <div style="padding:0 16px 16px; display:flex; gap:10px; align-items:center;">
+            <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="saveVeilleNotes(); showNotesToast()">💾 Sauvegarder les notes</button>
+            <div id="notes-toast" style="font-size:12px; color:var(--sage); font-weight:600; opacity:0; transition:opacity .3s;">✅ Notes sauvegardées</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Analyse IA veille -->
+      <div class="card fu d2" style="margin-bottom:20px;">
+        <div class="sec-h" style="margin-bottom:4px;">🤖 Analyse IA de ta veille</div>
+        <div class="sec-sub">Décris ce que tu as observé cette semaine — l'IA t'aide à en tirer des insights actionnables</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <textarea id="veille-ai-input" placeholder="Ex: J'ai vu que les créateurs e-commerce qui montrent leurs vrais chiffres explosent leur reach cette semaine. J'hésite à faire pareil. Qu'est-ce que tu en penses ?" style="flex:1; min-width:280px; height:80px; background:var(--warm); border:1.5px solid var(--border); border-radius:10px; padding:12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; resize:none; line-height:1.6;"></textarea>
+          <button class="save-btn" style="align-self:flex-end;" onclick="analyzeVeille()">Analyser →</button>
+        </div>
+        <div id="veille-ai-result" style="display:none; margin-top:16px;">
+          <div style="background:var(--warm); border:1.5px solid var(--border2); border-radius:12px; padding:20px;">
+            <div style="display:inline-flex; align-items:center; gap:6px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--sage); background:var(--sage-l); border:1px solid rgba(90,122,94,0.3); padding:4px 12px; border-radius:20px; margin-bottom:12px;">✦ Claude · Analyse veille</div>
+            <div id="veille-ai-text" style="font-size:13px; color:var(--dim); line-height:1.8;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Résumé de niche -->
+      <div class="card fu d3" style="background:linear-gradient(135deg,#fffcf7,#fff5ea); border-color:var(--border2);">
+        <div class="sec-h" style="margin-bottom:4px;">🌐 Tendances de ta niche — à surveiller</div>
+        <div class="sec-sub">Sujets chauds en ce moment pour les créateurs e-commerce / reconversion cadres</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+          <div style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px;">
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--terra); margin-bottom:8px;">🔥 Formats en vogue</div>
+            <ul style="font-size:12px; color:var(--dim); line-height:1.9; list-style:none; padding:0;">
+              <li>→ Transparence revenus réels (chiffrés)</li>
+              <li>→ "J'étais [statut] maintenant je..." </li>
+              <li>→ Études de cas clients avec timeline</li>
+              <li>→ Carrousels "étapes concrètes"</li>
+              <li>→ Vidéos courtes "1 tip par jour"</li>
+            </ul>
+          </div>
+          <div style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px;">
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--sage); margin-bottom:8px;">💡 Angles peu exploités</div>
+            <ul style="font-size:12px; color:var(--dim); line-height:1.9; list-style:none; padding:0;">
+              <li>→ E-commerce avec crédit immo / famille</li>
+              <li>→ "Mon patron ne sait pas que..."</li>
+              <li>→ E-commerce le soir après le boulot</li>
+              <li>→ La peur de l'échec à 40 ans</li>
+              <li>→ Témoignages de conjoints / famille</li>
+            </ul>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="generateVeilleDigest()">🤖 Générer un digest de veille IA</button>
+          <div id="digest-loading" style="display:none;" class="loading-inline">⏳ Génération...</div>
+        </div>
+        <div id="digest-result" style="display:none; margin-top:16px;">
+          <div style="background:var(--card); border:1.5px solid var(--border2); border-radius:12px; padding:20px;">
+            <div style="display:inline-flex; align-items:center; gap:6px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--sage); background:var(--sage-l); border:1px solid rgba(90,122,94,0.3); padding:4px 12px; border-radius:20px; margin-bottom:12px;">✦ Claude · Digest hebdo</div>
+            <div id="digest-text" style="font-size:13px; color:var(--dim); line-height:1.8;"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════ CRÉATEURS SUIVIS ══════ -->
+    <div id="sec-competitors" class="section">
+
+      <div class="entry-banner fu" style="margin-bottom:24px;">
+        <div class="icon">🔍</div>
+        <div class="entry-banner-body">
+          <h2>Créateurs suivis — Stats & Benchmarks</h2>
+          <p>Saisis les stats des créateurs que tu surveilles. Ces données sont injectées automatiquement dans tous les conseils IA pour des recommandations basées sur de vrais benchmarks de ta niche.</p>
+        </div>
+      </div>
+
+      <!-- Sub-tabs -->
+      <div class="comp-tabs fu">
+        <div class="comp-tab active" onclick="switchCompTab(this,'list')">📋 Mes créateurs</div>
+        <div class="comp-tab" onclick="switchCompTab(this,'add')">➕ Ajouter manuellement</div>
+        <div class="comp-tab" onclick="switchCompTab(this,'csv')">⬆️ Importer CSV</div>
+        <div class="comp-tab" onclick="switchCompTab(this,'benchmark')">📊 Benchmark IA</div>
+      </div>
+
+      <!-- LIST TAB -->
+      <div id="ctab-list" class="fu d1">
+        <div id="comp-empty" class="empty-state" style="display:none;">
+          <div class="es-icon">🔍</div>
+          <h3>Aucun créateur ajouté encore</h3>
+          <p>Ajoute des créateurs manuellement ou via CSV pour enrichir les analyses IA avec de vrais benchmarks de ta niche.</p>
+        </div>
+
+        <!-- Filter bar -->
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap;" id="comp-filter-bar">
+          <select id="comp-filter-plat" onchange="renderCompetitors()" style="background:var(--card); border:1.5px solid var(--border); border-radius:9px; padding:8px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer;">
+            <option value="all">Toutes plateformes</option>
+            <option value="ig">📸 Instagram</option>
+            <option value="li">💼 LinkedIn</option>
+            <option value="tt">🎵 TikTok</option>
+            <option value="yt">▶️ YouTube</option>
+          </select>
+          <div id="comp-total-badge" style="font-size:12px; font-weight:600; color:var(--muted);"></div>
+          <button onclick="exportCompCSV()" style="margin-left:auto; background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:8px 14px; font-family:Outfit,sans-serif; font-size:12px; font-weight:600; color:var(--dim); cursor:pointer; transition:all .15s;" onmouseover="this.style.borderColor='var(--terra)'" onmouseout="this.style.borderColor='var(--border)'">⬇️ Exporter CSV</button>
+        </div>
+
+        <div id="comp-grid" class="comp-grid"></div>
+
+        <!-- History modal overlay -->
+        <div id="comp-history-modal" style="display:none; position:fixed; inset:0; background:rgba(26,21,16,0.6); z-index:200; align-items:center; justify-content:center; padding:24px;">
+          <div style="background:var(--card); border-radius:18px; padding:28px; max-width:560px; width:100%; max-height:80vh; overflow-y:auto; box-shadow:var(--shadow-lg);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+              <div class="sec-h" id="modal-title">Historique</div>
+              <button onclick="closeModal()" style="background:var(--warm); border:1.5px solid var(--border); border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; font-weight:600; color:var(--dim);">✕ Fermer</button>
+            </div>
+            <div id="modal-content"></div>
+            <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
+              <div class="sec-h" style="font-size:14px; margin-bottom:12px;">➕ Ajouter une semaine</div>
+              <div class="form-row-3">
+                <div class="field-group">
+                  <label>Semaine</label>
+                  <input type="week" id="modal-week" class="week-input" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:8px 10px; font-family:Outfit,sans-serif; font-size:12px; color:var(--text); outline:none; width:100%;" />
+                </div>
+                <div class="field-group">
+                  <label>Abonnés</label>
+                  <input type="number" id="modal-followers" placeholder="ex: 45000" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:8px 10px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+                </div>
+                <div class="field-group">
+                  <label>Engagement %</label>
+                  <input type="number" step="0.1" id="modal-engage" placeholder="ex: 4.2" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:8px 10px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field-group">
+                  <label>Posts publiés</label>
+                  <input type="number" id="modal-posts" placeholder="ex: 4" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:8px 10px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+                </div>
+                <div class="field-group">
+                  <label>Vues / Portée</label>
+                  <input type="number" id="modal-reach" placeholder="ex: 120000" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:8px 10px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+                </div>
+              </div>
+              <input type="hidden" id="modal-comp-id" />
+              <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="addCompWeek()">💾 Ajouter cette semaine</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADD MANUALLY TAB -->
+      <div id="ctab-add" style="display:none;" class="fu d1">
+        <div class="card">
+          <div class="sec-h" style="margin-bottom:4px;">➕ Ajouter un créateur</div>
+          <div class="sec-sub">Remplis les infos de base — tu pourras ajouter ses stats semaine par semaine ensuite</div>
+
+          <div class="form-row" style="margin-bottom:12px;">
+            <div class="field-group">
+              <label>Nom / Pseudo *</label>
+              <input id="add-name" placeholder="ex: Julie Martin" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+            </div>
+            <div class="field-group">
+              <label>Handle (optionnel)</label>
+              <input id="add-handle" placeholder="ex: @juliemarket" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-bottom:12px;">
+            <div class="field-group">
+              <label>Plateforme principale *</label>
+              <select id="add-plat" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer; width:100%;">
+                <option value="ig">📸 Instagram</option>
+                <option value="li">💼 LinkedIn</option>
+                <option value="tt">🎵 TikTok</option>
+                <option value="yt">▶️ YouTube</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label>Niche / Thématique</label>
+              <input id="add-niche" placeholder="ex: E-commerce, reconversion pro..." style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+            </div>
+          </div>
+
+          <div style="font-size:12px; font-weight:700; color:var(--dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; margin-top:4px;">📊 Stats actuelles (semaine en cours)</div>
+          <div class="form-row-3" style="margin-bottom:12px;">
+            <div class="field-group">
+              <label>Abonnés *</label>
+              <input type="number" id="add-followers" placeholder="ex: 45000" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+            </div>
+            <div class="field-group">
+              <label>Engagement %</label>
+              <input type="number" step="0.1" id="add-engage" placeholder="ex: 4.2" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+            </div>
+            <div class="field-group">
+              <label>Posts / semaine</label>
+              <input type="number" id="add-posts" placeholder="ex: 5" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom:16px;">
+            <div class="field-group">
+              <label>Vues / Portée hebdo</label>
+              <input type="number" id="add-reach" placeholder="ex: 120000" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+            </div>
+            <div class="field-group">
+              <label>Note / observation</label>
+              <input id="add-note" placeholder="ex: Poste beaucoup de témoignages clients" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; width:100%;" />
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="save-btn" onclick="addCompetitor()">💾 Ajouter ce créateur</button>
+            <div id="add-toast" style="font-size:12px; color:var(--sage); font-weight:600; opacity:0; transition:opacity .3s;">✅ Créateur ajouté !</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CSV TAB -->
+      <div id="ctab-csv" style="display:none;" class="fu d1">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sec-h" style="margin-bottom:4px;">⬆️ Importer via CSV</div>
+          <div class="sec-sub">Télécharge le modèle, remplis-le dans Excel / Google Sheets, puis importe</div>
+
+          <div style="margin-bottom:16px;">
+            <div style="font-size:12px; font-weight:700; color:var(--dim); margin-bottom:8px;">📄 Format attendu (une ligne par créateur/semaine) :</div>
+            <div class="csv-template-box">Nom,Handle,Plateforme,Niche,Semaine,Abonnes,Engagement,Posts,Portee,Note<br>Julie Martin,@juliemarket,tt,E-commerce,2026-W07,14600,6.1,4,48000,Forte croissance sur hooks famille<br>Olivier T.,@oliviert,li,Revenus passifs,2026-W07,48000,5.8,3,280000,Carrousels très partagés</div>
+          </div>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+            <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="downloadCompTemplate()">⬇️ Télécharger le modèle CSV</button>
+            <label style="display:inline-flex; align-items:center; gap:7px; background:var(--warm); border:1.5px solid var(--border); border-radius:10px; padding:9px 16px; cursor:pointer; font-size:12px; font-weight:600; color:var(--dim); transition:all .15s;" onmouseover="this.style.borderColor='var(--terra)'" onmouseout="this.style.borderColor='var(--border)'">
+              ⬆️ Importer mon CSV
+              <input type="file" accept=".csv" onchange="importCompCSV(event)" style="display:none;" />
+            </label>
+          </div>
+
+          <div id="csv-import-result" style="display:none; padding:12px 16px; background:var(--sage-l); border:1px solid rgba(90,122,94,0.3); border-radius:10px; font-size:13px; color:var(--sage); font-weight:600;"></div>
+        </div>
+
+        <div class="card" style="background:var(--warm);">
+          <div class="sec-h" style="margin-bottom:8px;">💡 Conseils pour remplir le CSV</div>
+          <div style="font-size:13px; color:var(--dim); line-height:1.9;">
+            <strong>Plateforme</strong> : utilise exactement <code style="background:var(--card); padding:1px 6px; border-radius:4px; font-size:11px;">ig</code>, <code style="background:var(--card); padding:1px 6px; border-radius:4px; font-size:11px;">li</code>, <code style="background:var(--card); padding:1px 6px; border-radius:4px; font-size:11px;">tt</code> ou <code style="background:var(--card); padding:1px 6px; border-radius:4px; font-size:11px;">yt</code><br>
+            <strong>Semaine</strong> : format <code style="background:var(--card); padding:1px 6px; border-radius:4px; font-size:11px;">2026-W08</code> (année-Wnum)<br>
+            <strong>Plusieurs semaines</strong> : crée une ligne par créateur ET par semaine<br>
+            <strong>Engagement</strong> : en % sans le signe (ex: <code style="background:var(--card); padding:1px 6px; border-radius:4px; font-size:11px;">4.2</code> et non <code style="background:var(--card); padding:1px 6px; border-radius:4px; font-size:11px;">4.2%</code>)<br>
+            <strong>Note</strong> : champ libre pour tes observations sur ce créateur
+          </div>
+        </div>
+      </div>
+
+      <!-- BENCHMARK TAB -->
+      <div id="ctab-benchmark" style="display:none;" class="fu d1">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sec-h" style="margin-bottom:4px;">📊 Benchmark IA — Toi vs tes créateurs suivis</div>
+          <div class="sec-sub">L'IA compare tes stats avec celles des créateurs que tu suis et te donne des conseils précis</div>
+          <textarea id="bench-context" placeholder="Contexte optionnel : décris ce que tu veux comparer, une problématique précise, un objectif spécifique..." style="width:100%; height:70px; background:var(--warm); border:1.5px solid var(--border); border-radius:10px; padding:12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; resize:none; line-height:1.6; margin-bottom:12px;"></textarea>
+          <button class="save-btn" style="font-size:12px; padding:9px 20px;" onclick="runBenchmark()">🤖 Lancer le benchmark IA</button>
+        </div>
+
+        <div id="bench-result" style="display:none;">
+          <div class="ai-result-box">
+            <div class="ai-badge">✦ Claude · Benchmark personnalisé</div>
+            <div id="bench-text" style="font-size:13px; color:var(--dim); line-height:1.8;"></div>
+          </div>
+        </div>
+
+        <!-- Static comparison table -->
+        <div class="card fu d1" id="bench-table-wrap" style="margin-top:16px; display:none;">
+          <div class="sec-h" style="margin-bottom:12px;">📋 Tableau comparatif — dernière semaine saisie</div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+              <thead>
+                <tr style="border-bottom:2px solid var(--border);">
+                  <th style="text-align:left; padding:10px 12px; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1.5px;">Créateur</th>
+                  <th style="text-align:left; padding:10px 12px; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1.5px;">Plateforme</th>
+                  <th style="text-align:right; padding:10px 12px; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1.5px;">Abonnés</th>
+                  <th style="text-align:right; padding:10px 12px; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1.5px;">Engagement</th>
+                  <th style="text-align:right; padding:10px 12px; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1.5px;">Posts/sem</th>
+                  <th style="text-align:left; padding:10px 12px; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1.5px;">Note</th>
+                </tr>
+              </thead>
+              <tbody id="bench-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════ AI CONTENT ══════ -->
+    <div id="sec-aicontent" class="section">
+
+      <div class="entry-banner fu" style="margin-bottom:24px;">
+        <div class="icon">🤖</div>
+        <div class="entry-banner-body">
+          <h2>Analyse IA — Ton contenu</h2>
+          <p>Analyse ton hook, tes stats, tes gains de followers, tes légendes. L'IA te donne des tips personnalisés pour améliorer chaque élément de ton contenu.</p>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="plat-tabs fu d1" style="margin-bottom:20px;" id="ai-tabs">
+        <div class="plat-tab active" data-t="hook" onclick="switchAITab(this,'hook')">🎣 Hooks</div>
+        <div class="plat-tab" data-t="stats" onclick="switchAITab(this,'stats')">📊 Stats & Analyse</div>
+        <div class="plat-tab" data-t="follow" onclick="switchAITab(this,'follow')">📈 Gain followers</div>
+        <div class="plat-tab" data-t="caption" onclick="switchAITab(this,'caption')">✍️ Légendes & CTA</div>
+        <div class="plat-tab" data-t="content" onclick="switchAITab(this,'content')">💡 Idées contenu</div>
+      </div>
+
+      <!-- HOOK TAB -->
+      <div id="ait-hook" class="ai-tab-panel fu d1">
+        <div class="two-col" style="margin-bottom:16px;">
+          <div class="card">
+            <div class="sec-h" style="margin-bottom:4px;">🎣 Analyse de hook</div>
+            <div class="sec-sub">Colle ton accroche (1ère ligne, 1ères secondes) — l'IA note et améliore</div>
+            <textarea id="hook-input" placeholder="Ex: 'J'ai quitté mon CDI à 41 ans pour faire de l'e-commerce. Voici ce que personne ne dit...'" style="width:100%; height:90px; background:var(--warm); border:1.5px solid var(--border); border-radius:10px; padding:12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; resize:none; line-height:1.6; margin-bottom:12px;"></textarea>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+              <select id="hook-plat" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:8px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer;">
+                <option value="instagram">📸 Instagram / Reel</option>
+                <option value="linkedin">💼 LinkedIn</option>
+                <option value="tiktok">🎵 TikTok</option>
+                <option value="youtube">▶️ YouTube</option>
+              </select>
+              <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="analyzeHook()">🎣 Analyser ce hook</button>
+            </div>
+          </div>
+          <div class="card" style="background:var(--warm);">
+            <div class="sec-h" style="margin-bottom:8px;">⚡ Hooks qui marchent pour ta niche</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div class="hook-ex" onclick="copyHook(this)">"À 39 ans, j'avais un CDI, un crédit, 2 enfants. Et je suffoquais."</div>
+              <div class="hook-ex" onclick="copyHook(this)">"Ce samedi matin, mon e-commerce a tourné pendant que je déposais mes fils au foot."</div>
+              <div class="hook-ex" onclick="copyHook(this)">"J'ai analysé 50 cadres qui ont lancé un side business. Voici ce qu'ils ont tous en commun."</div>
+              <div class="hook-ex" onclick="copyHook(this)">"Mon patron pense que je fais des heures sup. En réalité je construis ma sortie."</div>
+              <div class="hook-ex" onclick="copyHook(this)">"Ce que l'e-commerce m'a vraiment coûté. Pas en argent."</div>
+            </div>
+            <div style="font-size:10px; color:var(--muted); margin-top:10px;">Clique sur un hook pour le copier</div>
+          </div>
+        </div>
+        <div id="hook-result" style="display:none;">
+          <div class="ai-result-box">
+            <div class="ai-badge">✦ Claude · Analyse hook</div>
+            <div id="hook-text" style="font-size:13px; color:var(--dim); line-height:1.8;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATS TAB -->
+      <div id="ait-stats" class="ai-tab-panel fu d1" style="display:none;">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sec-h" style="margin-bottom:4px;">📊 Analyse de tes performances</div>
+          <div class="sec-sub">Colle tes stats d'un post ou d'une semaine — l'IA diagnostique et recommande</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+            <div>
+              <label style="font-size:11px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:1px; display:block; margin-bottom:5px;">Plateforme</label>
+              <select id="stats-plat" style="width:100%; background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer;">
+                <option>📸 Instagram</option><option>💼 LinkedIn</option><option>🎵 TikTok</option><option>▶️ YouTube</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:1px; display:block; margin-bottom:5px;">Type de contenu</label>
+              <select id="stats-type" style="width:100%; background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer;">
+                <option>Reel / Vidéo courte</option><option>Carrousel</option><option>Post texte</option><option>Story</option><option>Vidéo longue</option>
+              </select>
+            </div>
+          </div>
+          <textarea id="stats-input" placeholder="Colle tes stats ici. Ex:&#10;Vues : 12.400&#10;Likes : 847&#10;Commentaires : 63&#10;Partages : 112&#10;Sauvegardes : 289&#10;Portée : 9.200&#10;Abonnés gagnés : +34&#10;&#10;Ou décris simplement : 'Mon reel de mardi a eu 12K vues mais seulement 0.8% d'engagement, je ne comprends pas pourquoi...'" style="width:100%; height:140px; background:var(--warm); border:1.5px solid var(--border); border-radius:10px; padding:12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; resize:vertical; line-height:1.6; margin-bottom:12px;"></textarea>
+          <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="analyzeStats()">📊 Diagnostiquer mes stats</button>
+        </div>
+
+        <!-- Stats auto depuis historique -->
+        <div class="card" style="background:linear-gradient(135deg,#fffcf7,#fff8ee); border-color:var(--border2);">
+          <div class="sec-h" style="margin-bottom:4px;">⚡ Analyse auto depuis ton historique</div>
+          <div class="sec-sub">L'IA analyse directement tes dernières semaines saisies</div>
+          <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="analyzeFromHistory()">🔍 Analyser mes données réelles</button>
+          <div id="history-analysis-result" style="display:none; margin-top:16px;">
+            <div class="ai-result-box">
+              <div class="ai-badge">✦ Claude · Analyse historique</div>
+              <div id="history-analysis-text" style="font-size:13px; color:var(--dim); line-height:1.8;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="stats-result" style="display:none; margin-top:16px;">
+          <div class="ai-result-box">
+            <div class="ai-badge">✦ Claude · Diagnostic stats</div>
+            <div id="stats-text" style="font-size:13px; color:var(--dim); line-height:1.8;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOLLOWERS TAB -->
+      <div id="ait-follow" class="ai-tab-panel fu d1" style="display:none;">
+        <div class="two-col" style="margin-bottom:16px;">
+          <div class="card">
+            <div class="sec-h" style="margin-bottom:4px;">📈 Analyser mon gain de followers</div>
+            <div class="sec-sub">Décris ton évolution — l'IA identifie les causes et te donne des leviers</div>
+            <textarea id="follow-input" placeholder="Ex: 'Cette semaine j'ai gagné +340 abonnés sur Instagram après mon reel sur l'équilibre famille/travail, mais j'en ai perdu -80 sur TikTok. Je ne comprends pas pourquoi TikTok baisse alors que je poste autant...'" style="width:100%; height:120px; background:var(--warm); border:1.5px solid var(--border); border-radius:10px; padding:12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; resize:none; line-height:1.6; margin-bottom:12px;"></textarea>
+            <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="analyzeFollowers()">📈 Analyser mon évolution</button>
+          </div>
+          <div class="card" style="background:var(--warm);">
+            <div class="sec-h" style="margin-bottom:8px;">🎯 Benchmarks de ta niche</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div class="benchmark-row"><div class="bm-label">Instagram (1K–10K)</div><div class="bm-val">+50 à +200 / semaine</div><div class="bm-note">= bon rythme</div></div>
+              <div class="benchmark-row"><div class="bm-label">Instagram Engage.</div><div class="bm-val">3% – 6%</div><div class="bm-note">= dans la norme</div></div>
+              <div class="benchmark-row"><div class="bm-label">LinkedIn Engage.</div><div class="bm-val">4% – 9%</div><div class="bm-note">= très bien</div></div>
+              <div class="benchmark-row"><div class="bm-label">TikTok Complétion</div><div class="bm-val">> 40%</div><div class="bm-note">= algo boost</div></div>
+              <div class="benchmark-row"><div class="bm-label">YouTube Rétention</div><div class="bm-val">> 50%</div><div class="bm-note">= excellente</div></div>
+              <div class="benchmark-row"><div class="bm-label">Lead → Client</div><div class="bm-val">8% – 15%</div><div class="bm-note">= objectif</div></div>
+            </div>
+          </div>
+        </div>
+        <div id="follow-result" style="display:none;">
+          <div class="ai-result-box">
+            <div class="ai-badge">✦ Claude · Analyse followers</div>
+            <div id="follow-text" style="font-size:13px; color:var(--dim); line-height:1.8;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CAPTION TAB -->
+      <div id="ait-caption" class="ai-tab-panel fu d1" style="display:none;">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sec-h" style="margin-bottom:4px;">✍️ Analyse légende & CTA</div>
+          <div class="sec-sub">Colle ta légende complète — l'IA note ton hook, ton corps de texte, ton CTA et propose une version améliorée</div>
+          <div style="display:flex; gap:8px; margin-bottom:12px;">
+            <select id="cap-plat" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer;">
+              <option>📸 Instagram</option><option>💼 LinkedIn</option><option>🎵 TikTok</option>
+            </select>
+            <select id="cap-goal" style="flex:1; background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer;">
+              <option>Objectif : Générer des leads</option>
+              <option>Objectif : Maximiser l'engagement</option>
+              <option>Objectif : Gagner des abonnés</option>
+              <option>Objectif : Vendre ma formation</option>
+            </select>
+          </div>
+          <textarea id="cap-input" placeholder="Colle ta légende complète ici (avec emojis, hashtags, CTA)..." style="width:100%; height:160px; background:var(--warm); border:1.5px solid var(--border); border-radius:10px; padding:12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; resize:vertical; line-height:1.7; margin-bottom:12px;"></textarea>
+          <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="analyzeCaption()">✍️ Analyser & améliorer</button>
+        </div>
+        <div id="cap-result" style="display:none;">
+          <div class="ai-result-box">
+            <div class="ai-badge">✦ Claude · Analyse légende</div>
+            <div id="cap-text" style="font-size:13px; color:var(--dim); line-height:1.8;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTENT IDEAS TAB -->
+      <div id="ait-content" class="ai-tab-panel fu d1" style="display:none;">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sec-h" style="margin-bottom:4px;">💡 Générateur d'idées contenu</div>
+          <div class="sec-sub">Basé sur ta niche exacte : e-commerce · cadres +35 ans · équilibre famille/travail · objectif leads</div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+            <select id="idea-plat" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer;">
+              <option value="">Toutes plateformes</option>
+              <option value="instagram">📸 Instagram</option>
+              <option value="linkedin">💼 LinkedIn</option>
+              <option value="tiktok">🎵 TikTok</option>
+              <option value="youtube">▶️ YouTube</option>
+            </select>
+            <select id="idea-type" style="background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer;">
+              <option value="">Tous formats</option>
+              <option value="reel">Reel / Vidéo courte</option>
+              <option value="carrousel">Carrousel</option>
+              <option value="texte">Post texte long</option>
+              <option value="story">Story / série</option>
+              <option value="youtube">Vidéo YouTube longue</option>
+            </select>
+            <input id="idea-context" placeholder="Contexte optionnel (ex: suite à lancement formation)..." style="flex:1; min-width:200px; background:var(--warm); border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-family:Outfit,sans-serif; font-size:13px; color:var(--text); outline:none;" />
+          </div>
+          <button class="save-btn" style="font-size:12px; padding:9px 18px;" onclick="generateContentIdeas()">✨ Générer 5 idées</button>
+        </div>
+        <div id="ideas-result" style="display:none;">
+          <div class="ai-result-box">
+            <div class="ai-badge">✦ Claude · Idées de contenu</div>
+            <div id="ideas-text" style="font-size:13px; color:var(--dim); line-height:1.8;"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<script>
+// ══════════════════════════════════════════
+// DATA LAYER — LocalStorage persistence
+// ══════════════════════════════════════════
+
+const STORE_KEY = 'pulse_data_v2';
+
+function loadData() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveData(data) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+}
+
+// ══════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════
+
+const navLabels = {
+  overview:     ['Vue globale',              'Tes métriques réelles · Calculées depuis tes saisies'],
+  entry:        ['Saisie hebdomadaire',      'Entre tes métriques une fois par semaine'],
+  history:      ['Historique',               'Toutes tes semaines saisies · Filtrable par plateforme'],
+  evolution:    ['Évolution',                'Graphiques de progression · Basés sur tes données réelles'],
+  veille:       ['Veille hebdomadaire',      'Comptes suivis · Notes · Tendances de ta niche'],
+  competitors:  ['Créateurs suivis',         'Stats des créateurs que tu surveilles · Benchmark IA automatique'],
+  aicontent:    ['Analyse IA — Contenu',     'Hooks · Stats · Followers · Légendes · Idées — analysés par IA'],
+  guide:        ['Guide des plateformes',    'Où trouver exactement chaque chiffre sur chaque réseau']
+};
+
+function nav(el, id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  el.classList.add('active');
+  if (navLabels[id]) {
+    document.getElementById('page-title').textContent = navLabels[id][0];
+    document.getElementById('page-sub').textContent   = navLabels[id][1];
+  }
+  if (id === 'overview')     renderOverview();
+  if (id === 'history')      renderHistory();
+  if (id === 'evolution')    renderEvolution();
+  if (id === 'veille')       initVeille();
+  if (id === 'competitors')  renderCompetitors();
+}
+
+function goToEntry() {
+  const el = document.querySelector('.ni:nth-child(3)');
+  nav(el, 'entry');
+}
+
+// ══════════════════════════════════════════
+// WEEK PICKER — default to current week
+// ══════════════════════════════════════════
+
+function getWeekStr(date) {
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + 3 - (d.getDay()+6)%7);
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((d - week1) / 86400000 - 3 + (week1.getDay()+6)%7) / 7);
+  return `${d.getFullYear()}-W${String(weekNum).padStart(2,'0')}`;
+}
+
+function weekLabel(wstr) {
+  // "2025-W08" → "Sem. 8 · Fév 2025"
+  const [y, w] = wstr.split('-W').map(Number);
+  const d = new Date(y, 0, 1 + (w - 1) * 7);
+  const months = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  return `Sem. ${w} · ${months[d.getMonth()]} ${y}`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('week-picker').value = getWeekStr(new Date());
+  updateStreak();
+  updateLastEntryPill();
+  renderOverview();
+  renderWatchList();
+  const notesEl = document.getElementById('veille-notes');
+  if (notesEl) notesEl.value = loadVeilleNotes();
+});
+
+// ══════════════════════════════════════════
+// PLATFORM TABS
+// ══════════════════════════════════════════
+
+const platForms = ['ig','li','tt','yt'];
+
+function switchPlat(el, p) {
+  document.querySelectorAll('.plat-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  platForms.forEach(id => {
+    document.getElementById('form-' + id).style.display = id === p ? 'block' : 'none';
+  });
+}
+
+// ══════════════════════════════════════════
+// SAVE ENTRY
+// ══════════════════════════════════════════
+
+function val(id) { return parseFloat(document.getElementById(id).value) || 0; }
+
+function saveEntry() {
+  const week = document.getElementById('week-picker').value;
+  if (!week) { alert('Sélectionne une semaine !'); return; }
+
+  const data = loadData();
+
+  // Remove existing entries for same week
+  const filtered = data.filter(e => e.week !== week);
+
+  // Build entry object
+  const entry = {
+    week,
+    savedAt: new Date().toISOString(),
+    ig: {
+      followers: val('ig-followers'), engage: val('ig-engage'),
+      reach: val('ig-reach'), impressions: val('ig-impressions'),
+      newFollowers: val('ig-new'), clicks: val('ig-clicks'),
+      leads: val('ig-leads'), posts: val('ig-posts')
+    },
+    li: {
+      followers: val('li-followers'), impressions: val('li-impressions'),
+      engage: val('li-engage'), newFollowers: val('li-new'),
+      leads: val('li-leads'), posts: val('li-posts'),
+      comments: val('li-comments'), shares: val('li-shares')
+    },
+    tt: {
+      followers: val('tt-followers'), views: val('tt-views'),
+      completion: val('tt-completion'), newFollowers: val('tt-new'),
+      engage: val('tt-engage'), posts: val('tt-posts'),
+      leads: val('tt-leads'), topVideo: val('tt-top')
+    },
+    yt: {
+      followers: val('yt-followers'), views: val('yt-views'),
+      retention: val('yt-retention'), watchtime: val('yt-watchtime'),
+      newFollowers: val('yt-new'), posts: val('yt-posts'),
+      leads: val('yt-leads'), cta: val('yt-cta')
+    }
+  };
+
+  filtered.push(entry);
+  filtered.sort((a,b) => a.week.localeCompare(b.week));
+  saveData(filtered);
+
+  // Show toast
+  const toast = document.getElementById('saved-toast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+
+  updateStreak();
+  updateLastEntryPill();
+}
+
+// ══════════════════════════════════════════
+// STREAK & PILL
+// ══════════════════════════════════════════
+
+function updateStreak() {
+  const data = loadData();
+  let streak = 0;
+  if (data.length > 0) {
+    const weeks = data.map(d => d.week).sort().reverse();
+    let expected = getWeekStr(new Date());
+    for (const w of weeks) {
+      if (w === expected) { streak++; expected = prevWeek(expected); }
+      else break;
+    }
+    // also count if last entry is last week
+    if (streak === 0 && weeks[0] === prevWeek(getWeekStr(new Date()))) {
+      streak = 1;
+    }
+  }
+  document.getElementById('streak-val').textContent = streak;
+}
+
+function prevWeek(wstr) {
+  const [y, w] = wstr.split('-W').map(Number);
+  if (w === 1) return `${y-1}-W52`;
+  return `${y}-W${String(w-1).padStart(2,'0')}`;
+}
+
+function updateLastEntryPill() {
+  const data = loadData();
+  const pill = document.getElementById('last-entry-pill');
+  if (data.length === 0) { pill.textContent = 'Aucune saisie'; return; }
+  const last = data[data.length - 1];
+  pill.textContent = '📅 ' + weekLabel(last.week);
+}
+
+// ══════════════════════════════════════════
+// OVERVIEW
+// ══════════════════════════════════════════
+
+function renderOverview() {
+  const data = loadData();
+  const empty = document.getElementById('ov-empty');
+  const content = document.getElementById('ov-content');
+
+  if (data.length === 0) {
+    empty.style.display = 'block'; content.style.display = 'none'; return;
+  }
+  empty.style.display = 'none'; content.style.display = 'block';
+
+  const last = data[data.length - 1];
+  const prev = data.length > 1 ? data[data.length - 2] : null;
+
+  const platforms = [
+    { p:'ig', label:'Instagram', icon:'📸', mc:'var(--ig)', key:'followers' },
+    { p:'li', label:'LinkedIn',  icon:'💼', mc:'var(--li)', key:'followers' },
+    { p:'tt', label:'TikTok',    icon:'🎵', mc:'var(--tt)', key:'followers' },
+    { p:'yt', label:'YouTube',   icon:'▶️', mc:'var(--yt)', key:'followers' },
+  ];
+
+  let metricsHTML = '';
+  platforms.forEach(({p, label, icon, mc, key}) => {
+    const cur = last[p]?.followers || 0;
+    const prv = prev ? (prev[p]?.followers || 0) : 0;
+    const delta = cur - prv;
+    const pct = prv > 0 ? ((delta / prv) * 100).toFixed(1) : '—';
+    const deltaClass = delta > 0 ? 'delta-up' : delta < 0 ? 'delta-down' : 'delta-flat';
+    const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '~';
+    metricsHTML += `
+    <div class="met-card" style="--mc:${mc}">
+      <div class="met-plat"><div class="met-dot"></div><div class="met-pname">${label}</div></div>
+      <div class="met-val">${fmt_num(cur)}</div>
+      <div class="met-lbl">${icon} Abonnés</div>
+      <div class="met-delta ${deltaClass}">${arrow} ${delta > 0 ? '+' : ''}${fmt_num(delta)} ${prv > 0 ? '(' + pct + '%)' : ''}</div>
+    </div>`;
+  });
+  document.getElementById('ov-metrics').innerHTML = metricsHTML;
+
+  // Best week
+  const totalLeads = data.map(e => (e.ig?.leads||0) + (e.li?.leads||0) + (e.tt?.leads||0) + (e.yt?.leads||0));
+  const maxIdx = totalLeads.indexOf(Math.max(...totalLeads));
+  const bestW = data[maxIdx];
+  document.getElementById('ov-best-content').innerHTML = `
+    <p style="font-size:13px;color:var(--dim);margin-bottom:12px;">${weekLabel(bestW.week)}</p>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;">
+      <div style="text-align:center;"><div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:900;color:var(--terra);">${totalLeads[maxIdx]}</div><div style="font-size:11px;color:var(--muted);">Leads totaux</div></div>
+      <div style="text-align:center;"><div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:900;color:var(--blue);">${fmt_num(bestW.li?.impressions||0)}</div><div style="font-size:11px;color:var(--muted);">Impressions LI</div></div>
+      <div style="text-align:center;"><div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:900;color:var(--ig);">${bestW.ig?.engage||0}%</div><div style="font-size:11px;color:var(--muted);">Engage IG</div></div>
+    </div>`;
+
+  // Trends
+  if (data.length >= 2) {
+    const igTrend = ((last.ig.followers - data[0].ig.followers) / (data[0].ig.followers||1) * 100).toFixed(1);
+    const liTrend = ((last.li.followers - data[0].li.followers) / (data[0].li.followers||1) * 100).toFixed(1);
+    const totalL = totalLeads.reduce((a,b)=>a+b,0);
+    document.getElementById('ov-trend-content').innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="color:var(--dim);">📸 Instagram</span>
+          <span style="font-weight:700;color:${igTrend>=0?'var(--sage)':'var(--red)'};">${igTrend>=0?'+':''}${igTrend}% depuis le début</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="color:var(--dim);">💼 LinkedIn</span>
+          <span style="font-weight:700;color:${liTrend>=0?'var(--sage)':'var(--red)'};">${liTrend>=0?'+':''}${liTrend}% depuis le début</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">
+          <span style="color:var(--dim);">🎯 Leads total cumulés</span>
+          <span style="font-weight:700;color:var(--terra);">${totalL} leads</span>
+        </div>
+      </div>`;
+  }
+
+  // Overview chart — all followers
+  renderOvChart(data);
+}
+
+let ovChartInst = null;
+function renderOvChart(data) {
+  const labels = data.map(d => weekLabel(d.week));
+  const ctx = document.getElementById('ov-chart').getContext('2d');
+  if (ovChartInst) ovChartInst.destroy();
+  ovChartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'Instagram', data: data.map(d=>d.ig?.followers||0), borderColor:'#c4622d', backgroundColor:'rgba(196,98,45,0.08)', tension:.4, pointRadius:4, pointBackgroundColor:'#c4622d', fill:true },
+        { label:'LinkedIn',  data: data.map(d=>d.li?.followers||0), borderColor:'#3a6b8a', backgroundColor:'rgba(58,107,138,0.06)', tension:.4, pointRadius:4, pointBackgroundColor:'#3a6b8a', fill:true },
+        { label:'TikTok',    data: data.map(d=>d.tt?.followers||0), borderColor:'#555', backgroundColor:'rgba(85,85,85,0.05)', tension:.4, pointRadius:4, pointBackgroundColor:'#555', fill:true },
+        { label:'YouTube',   data: data.map(d=>d.yt?.followers||0), borderColor:'#a02020', backgroundColor:'rgba(160,32,32,0.06)', tension:.4, pointRadius:4, pointBackgroundColor:'#a02020', fill:true },
+      ]
+    },
+    options: chartOptions()
+  });
+}
+
+// ══════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════
+
+function renderHistory() {
+  const data = loadData();
+  const filterP = document.getElementById('hist-plat').value;
+  const tbody = document.getElementById('hist-body');
+  const empty = document.getElementById('hist-empty');
+  const table = document.getElementById('hist-table');
+
+  if (data.length === 0) {
+    empty.style.display = 'block'; table.style.display = 'none'; return;
+  }
+  empty.style.display = 'none'; table.style.display = 'table';
+
+  const plats = filterP === 'all' ? ['ig','li','tt','yt'] : [filterP];
+  const platMeta = {
+    ig: { label:'Instagram', icon:'📸', color:'var(--ig)', reachKey:'reach' },
+    li: { label:'LinkedIn',  icon:'💼', color:'var(--li)', reachKey:'impressions' },
+    tt: { label:'TikTok',    icon:'🎵', color:'var(--tt)', reachKey:'views' },
+    yt: { label:'YouTube',   icon:'▶️', color:'var(--yt)', reachKey:'views' }
+  };
+
+  let rows = '';
+  const sorted = [...data].reverse();
+
+  sorted.forEach((entry, ri) => {
+    const origIdx = data.length - 1 - ri;
+    const prev = origIdx > 0 ? data[origIdx - 1] : null;
+
+    plats.forEach(p => {
+      const d = entry[p];
+      const pd = prev?.[p];
+      const meta = platMeta[p];
+
+      const followers = d?.followers || 0;
+      const prevFol = pd?.followers || 0;
+      const delta = followers - prevFol;
+      const deltaStr = delta === 0 && !prev ? '—' : (delta >= 0 ? '+' + fmt_num(delta) : fmt_num(delta));
+      const deltaClass = delta > 0 ? 'delta-up' : delta < 0 ? 'delta-down' : 'delta-flat';
+
+      rows += `<tr>
+        <td class="td-week">${weekLabel(entry.week)}</td>
+        <td><span class="td-plat" style="color:${meta.color};">${meta.icon} ${meta.label}</span></td>
+        <td class="td-num">${fmt_num(followers)}</td>
+        <td><span class="td-delta ${deltaClass}">${deltaStr}</span></td>
+        <td class="td-num">${d?.engage||0}%</td>
+        <td class="td-num">${d?.leads||0}</td>
+        <td class="td-num">${d?.posts||0}</td>
+        <td class="td-num">${fmt_num(d?.[meta.reachKey]||0)}</td>
+        <td><button class="del-btn" onclick="deleteEntry('${entry.week}')" title="Supprimer cette semaine">✕</button></td>
+      </tr>`;
+    });
+  });
+
+  tbody.innerHTML = rows || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted);">Aucune donnée pour ce filtre</td></tr>';
+}
+
+function deleteEntry(week) {
+  if (!confirm(`Supprimer la saisie "${weekLabel(week)}" ?`)) return;
+  const data = loadData().filter(e => e.week !== week);
+  saveData(data);
+  renderHistory();
+  updateLastEntryPill();
+  updateStreak();
+}
+
+// ══════════════════════════════════════════
+// EXPORT CSV
+// ══════════════════════════════════════════
+
+function exportCSV() {
+  const data = loadData();
+  if (data.length === 0) { alert('Aucune donnée à exporter !'); return; }
+
+  const headers = ['Semaine','Instagram_Followers','Instagram_Engage%','Instagram_Leads','Instagram_Reach','LinkedIn_Followers','LinkedIn_Engage%','LinkedIn_Leads','LinkedIn_Impressions','TikTok_Followers','TikTok_Engage%','TikTok_Leads','TikTok_Views','YouTube_Followers','YouTube_Retention%','YouTube_Leads','YouTube_Views','Total_Leads'];
+
+  const rows = data.map(e => {
+    const totalLeads = (e.ig?.leads||0) + (e.li?.leads||0) + (e.tt?.leads||0) + (e.yt?.leads||0);
+    return [
+      e.week,
+      e.ig?.followers||0, e.ig?.engage||0, e.ig?.leads||0, e.ig?.reach||0,
+      e.li?.followers||0, e.li?.engage||0, e.li?.leads||0, e.li?.impressions||0,
+      e.tt?.followers||0, e.tt?.engage||0, e.tt?.leads||0, e.tt?.views||0,
+      e.yt?.followers||0, e.yt?.retention||0, e.yt?.leads||0, e.yt?.views||0,
+      totalLeads
+    ].join(',');
+  });
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `pulse_data_${getWeekStr(new Date())}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════════════
+// IMPORT CSV
+// ══════════════════════════════════════════
+
+function importCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const lines = e.target.result.trim().split('\n');
+      const headers = lines[0].split(',');
+
+      // Validate it's our CSV format
+      if (!headers.includes('Semaine') || !headers.includes('Instagram_Followers')) {
+        alert('❌ Fichier non reconnu. Importe uniquement un CSV exporté depuis SXB RS DASHBOARD.');
+        return;
+      }
+
+      const existing = loadData();
+      const existingWeeks = existing.map(d => d.week);
+      let imported = 0, skipped = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        if (cols.length < 17) continue;
+
+        const week = cols[0].trim();
+        if (!week.match(/^\d{4}-W\d{2}$/)) continue;
+
+        if (existingWeeks.includes(week)) { skipped++; continue; }
+
+        existing.push({
+          week,
+          savedAt: new Date().toISOString(),
+          ig: {
+            followers: +cols[1]||0, engage: +cols[2]||0,
+            leads: +cols[3]||0, reach: +cols[4]||0,
+            impressions: 0, newFollowers: 0, clicks: 0, posts: 0
+          },
+          li: {
+            followers: +cols[5]||0, engage: +cols[6]||0,
+            leads: +cols[7]||0, impressions: +cols[8]||0,
+            newFollowers: 0, posts: 0, comments: 0, shares: 0
+          },
+          tt: {
+            followers: +cols[9]||0, engage: +cols[10]||0,
+            leads: +cols[11]||0, views: +cols[12]||0,
+            newFollowers: 0, posts: 0, completion: 0, topVideo: 0
+          },
+          yt: {
+            followers: +cols[13]||0, retention: +cols[14]||0,
+            leads: +cols[15]||0, views: +cols[16]||0,
+            newFollowers: 0, posts: 0, watchtime: 0, cta: 0
+          }
+        });
+        imported++;
+      }
+
+      existing.sort((a,b) => a.week.localeCompare(b.week));
+      saveData(existing);
+      updateStreak();
+      updateLastEntryPill();
+
+      // Reset file input
+      event.target.value = '';
+
+      // Show result
+      const msg = imported > 0
+        ? `✅ Import réussi !\n\n• ${imported} semaine(s) importée(s)${skipped > 0 ? '\n• ' + skipped + ' semaine(s) déjà présente(s), ignorée(s)' : ''}\n\nVa dans "Historique" pour vérifier tes données.`
+        : `ℹ️ Aucune nouvelle semaine importée.\n${skipped > 0 ? skipped + ' semaine(s) déjà présente(s) dans ton historique.' : 'Fichier vide ou format non reconnu.'}`;
+      alert(msg);
+
+    } catch(err) {
+      alert('❌ Erreur lors de la lecture du fichier. Vérifie que c\'est bien un CSV exporté depuis l\'app.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ══════════════════════════════════════════
+// EVOLUTION CHARTS
+// ══════════════════════════════════════════
+
+const chartInsts = {};
+
+function renderEvolution() {
+  const data = loadData();
+  const empty = document.getElementById('evo-empty');
+  const content = document.getElementById('evo-content');
+
+  if (data.length < 2) {
+    empty.style.display = 'block'; content.style.display = 'none'; return;
+  }
+  empty.style.display = 'none'; content.style.display = 'block';
+
+  const labels = data.map(d => weekLabel(d.week));
+
+  const makeChart = (id, label, color, vals, type='line') => {
+    if (chartInsts[id]) chartInsts[id].destroy();
+    const ctx = document.getElementById(id).getContext('2d');
+    chartInsts[id] = new Chart(ctx, {
+      type,
+      data: {
+        labels,
+        datasets: [{
+          label, data: vals,
+          borderColor: color, backgroundColor: color.replace(')',',0.12)').replace('rgb','rgba'),
+          tension:.4, pointRadius:4, pointBackgroundColor: color, fill: type==='line',
+          barThickness: 28
+        }]
+      },
+      options: chartOptions(type === 'bar')
+    });
+  };
+
+  makeChart('chart-ig-f', 'Followers', '#c4622d', data.map(d=>d.ig?.followers||0));
+  makeChart('chart-li-f', 'Followers', '#3a6b8a', data.map(d=>d.li?.followers||0));
+  makeChart('chart-tt-f', 'Followers', '#555',    data.map(d=>d.tt?.followers||0));
+  makeChart('chart-yt-f', 'Followers', '#a02020', data.map(d=>d.yt?.followers||0));
+
+  const totalLeads = data.map(e => (e.ig?.leads||0) + (e.li?.leads||0) + (e.tt?.leads||0) + (e.yt?.leads||0));
+  makeChart('chart-leads', 'Leads', '#c4622d', totalLeads, 'bar');
+
+  // Multi-line engage
+  if (chartInsts['chart-engage']) chartInsts['chart-engage'].destroy();
+  const ctx = document.getElementById('chart-engage').getContext('2d');
+  chartInsts['chart-engage'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'Instagram', data: data.map(d=>d.ig?.engage||0), borderColor:'#c4622d', tension:.4, pointRadius:3, fill:false },
+        { label:'LinkedIn',  data: data.map(d=>d.li?.engage||0), borderColor:'#3a6b8a', tension:.4, pointRadius:3, fill:false },
+        { label:'TikTok',    data: data.map(d=>d.tt?.engage||0), borderColor:'#555',    tension:.4, pointRadius:3, fill:false },
+      ]
+    },
+    options: chartOptions()
+  });
+}
+
+function chartOptions(isBar=false) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, labels: { font: { family: 'Outfit', size: 11 }, color: '#6b5e4e', boxWidth: 12, padding: 12 } },
+      tooltip: { backgroundColor: '#1a1510', titleColor: '#fff', bodyColor: '#a8977f', cornerRadius: 8, padding: 10 }
+    },
+    scales: {
+      x: { grid: { color: 'rgba(232,223,208,0.6)' }, ticks: { font: { family: 'DM Mono', size: 10 }, color: '#a8977f', maxRotation: 30 } },
+      y: { grid: { color: 'rgba(232,223,208,0.6)' }, ticks: { font: { family: 'DM Mono', size: 10 }, color: '#a8977f' }, beginAtZero: false }
+    }
+  };
+}
+
+// ══════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════
+
+function fmt_num(n) {
+  if (!n) return '0';
+  if (Math.abs(n) >= 1000) return (n/1000).toFixed(1).replace('.0','') + 'K';
+  return String(n);
+}
+
+// ══════════════════════════════════════════
+// STORAGE KEYS
+// ══════════════════════════════════════════
+const VEILLE_ACCOUNTS_KEY = 'sxb_veille_accounts';
+const VEILLE_NOTES_KEY    = 'sxb_veille_notes';
+
+// ══════════════════════════════════════════
+// VEILLE — Comptes suivis
+// ══════════════════════════════════════════
+
+const platColors = {
+  ig: { bg:'rgba(196,98,45,0.12)', color:'var(--ig)', label:'📸 Instagram' },
+  li: { bg:'rgba(58,107,138,0.12)', color:'var(--li)', label:'💼 LinkedIn' },
+  tt: { bg:'rgba(45,37,32,0.08)',  color:'var(--tt)', label:'🎵 TikTok' },
+  yt: { bg:'rgba(160,32,32,0.1)',  color:'var(--yt)', label:'▶️ YouTube' }
+};
+
+function loadWatchAccounts() {
+  try { return JSON.parse(localStorage.getItem(VEILLE_ACCOUNTS_KEY)) || []; }
+  catch { return []; }
+}
+function saveWatchAccounts(list) {
+  localStorage.setItem(VEILLE_ACCOUNTS_KEY, JSON.stringify(list));
+}
+
+function addWatchAccount() {
+  const handle = document.getElementById('watch-handle').value.trim();
+  const plat   = document.getElementById('watch-plat').value;
+  if (!handle) return;
+  const list = loadWatchAccounts();
+  const id = Date.now();
+  list.push({ id, handle, plat, addedAt: new Date().toISOString() });
+  saveWatchAccounts(list);
+  document.getElementById('watch-handle').value = '';
+  renderWatchList();
+}
+
+function deleteWatchAccount(id) {
+  const list = loadWatchAccounts().filter(a => a.id !== id);
+  saveWatchAccounts(list);
+  renderWatchList();
+}
+
+function renderWatchList() {
+  const list = loadWatchAccounts();
+  const el   = document.getElementById('watch-list');
+  const cnt  = document.getElementById('watch-count');
+  if (!el) return;
+  cnt.textContent = list.length;
+
+  if (list.length === 0) {
+    el.innerHTML = '<div style="padding:24px; text-align:center; color:var(--muted); font-size:13px;">Aucun compte ajouté encore.<br>Ajoute des créateurs à surveiller ci-dessous.</div>';
+    return;
+  }
+
+  el.innerHTML = list.map(a => {
+    const meta  = platColors[a.plat] || platColors.ig;
+    const initials = a.handle.replace('@','').slice(0,2).toUpperCase();
+    return `<div class="watch-account-item">
+      <div class="watch-avatar" style="background:${meta.bg}; color:${meta.color};">${initials}</div>
+      <div class="watch-info">
+        <div class="watch-name">${a.handle}</div>
+        <div class="watch-plat-tag">${meta.label}</div>
+      </div>
+      <button class="watch-del" onclick="deleteWatchAccount(${a.id})" title="Supprimer">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+// VEILLE — Notes
+// ══════════════════════════════════════════
+
+function loadVeilleNotes() {
+  return localStorage.getItem(VEILLE_NOTES_KEY) || '';
+}
+function saveVeilleNotes() {
+  const notes = document.getElementById('veille-notes');
+  if (notes) localStorage.setItem(VEILLE_NOTES_KEY, notes.value);
+}
+function showNotesToast() {
+  const t = document.getElementById('notes-toast');
+  if (!t) return;
+  t.style.opacity = '1';
+  setTimeout(() => t.style.opacity = '0', 2500);
+}
+
+function initVeille() {
+  renderWatchList();
+  const notesEl = document.getElementById('veille-notes');
+  if (notesEl) notesEl.value = loadVeilleNotes();
+}
+
+// ══════════════════════════════════════════
+// CLAUDE API
+// ══════════════════════════════════════════
+
+const NICHE_CTX = `Tu es un expert en stratégie de contenu et marketing digital. Tu conseilles un créateur de contenu dont la niche exacte est : accompagnement/formation e-commerce pour les cadres salariés de plus de 35 ans avec famille, qui veulent retrouver de l'équilibre vie-travail et plus de temps en famille. Ses réseaux : Instagram (~9K), LinkedIn (~5K), TikTok (~15K), YouTube (~1.8K). Objectif principal : générer des leads qualifiés pour sa formation e-commerce. Réponds toujours en français, de façon concrète et directement actionnables. Utilise des emojis pour structurer. Maximum 350 mots.`;
+
+async function callClaude(prompt) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  const d = await r.json();
+  if (d.content?.[0]) return d.content[0].text;
+  throw new Error('No response');
+}
+
+function fmtAI(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/### (.*?)(\n|$)/g, '<div style="font-size:14px;font-weight:700;margin:14px 0 6px;color:var(--terra);">$1</div>')
+    .replace(/## (.*?)(\n|$)/g, '<div style="font-size:15px;font-weight:700;margin:16px 0 8px;color:var(--text);">$1</div>')
+    .replace(/\n\n/g, '</p><p style="margin-top:8px;">')
+    .replace(/\n/g, '<br>')
+    .replace(/^/, '<p>').replace(/$/, '</p>');
+}
+
+async function runAI(prompt, resultId, textId, loadingMsg='Analyse en cours…') {
+  const resultEl = document.getElementById(resultId);
+  const textEl   = document.getElementById(textId);
+  resultEl.style.display = 'block';
+  textEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;"><div style="width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--terra);border-radius:50%;animation:spin .9s linear infinite;flex-shrink:0;"></div>${loadingMsg}</div>`;
+  try {
+    const res = await callClaude(prompt);
+    textEl.innerHTML = fmtAI(res);
+  } catch(e) {
+    textEl.innerHTML = '<span style="color:var(--red);">Erreur de connexion à l\'IA. Vérifie ta connexion et réessaie.</span>';
+  }
+}
+
+// ══════════════════════════════════════════
+// VEILLE — IA
+// ══════════════════════════════════════════
+
+function analyzeVeille() {
+  const obs = document.getElementById('veille-ai-input').value.trim();
+  if (!obs) return;
+  runAI(
+    `${NICHE_CTX}\n\nLe créateur partage ses observations de veille de la semaine : "${obs}"\n\nDonne-lui 3 insights actionnables à partir de ces observations, et dis-lui comment les appliquer concrètement à son contenu cette semaine.`,
+    'veille-ai-result', 'veille-ai-text', 'Analyse de ta veille…'
+  );
+}
+
+async function generateVeilleDigest() {
+  const loadEl = document.getElementById('digest-loading');
+  const resEl  = document.getElementById('digest-result');
+  const txtEl  = document.getElementById('digest-text');
+  loadEl.style.display = 'inline-flex';
+  resEl.style.display = 'none';
+
+  const notes = loadVeilleNotes();
+  const accounts = loadWatchAccounts().map(a => a.handle).join(', ') || 'aucun compte listé';
+
+  try {
+    const res = await callClaude(
+      `${NICHE_CTX}\n\nComptes suivis par le créateur : ${accounts}\nNotes de veille de la semaine : ${notes || 'Pas de notes cette semaine.'}\n\nGénère un digest de veille hebdomadaire structuré incluant : 1) Les tendances à capitaliser immédiatement 2) Un angle de contenu à tester cette semaine 3) Une opportunité détectée dans la niche 4) Un tip de croissance rapide. Sois très concret et spécifique à sa niche e-commerce/cadres.`
+    );
+    loadEl.style.display = 'none';
+    resEl.style.display = 'block';
+    txtEl.innerHTML = fmtAI(res);
+  } catch(e) {
+    loadEl.style.display = 'none';
+    resEl.style.display = 'block';
+    txtEl.innerHTML = '<span style="color:var(--red);">Erreur de connexion.</span>';
+  }
+}
+
+// ══════════════════════════════════════════
+// AI CONTENT — Tab switcher
+// ══════════════════════════════════════════
+
+function switchAITab(el, tab) {
+  document.querySelectorAll('#ai-tabs .plat-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.ai-tab-panel').forEach(p => p.style.display = 'none');
+  document.getElementById('ait-' + tab).style.display = 'block';
+}
+
+// ══════════════════════════════════════════
+// AI CONTENT — Hooks
+// ══════════════════════════════════════════
+
+function analyzeHook() {
+  const hook = document.getElementById('hook-input').value.trim();
+  const plat = document.getElementById('hook-plat').value;
+  if (!hook) return;
+  runAI(
+    `${NICHE_CTX}\n\nLe créateur veut analyser ce hook pour ${plat} : "${hook}"\n\nDonne : 1) Une note sur 10 avec justification 2) Ce qui fonctionne bien 3) Ce qui peut être amélioré 4) 2 versions alternatives améliorées du hook, spécifiques à son audience de cadres +35 ans avec famille.`,
+    'hook-result', 'hook-text', 'Analyse de ton hook…'
+  );
+}
+
+function copyHook(el) {
+  navigator.clipboard.writeText(el.textContent.replace(/[""]/g,'"'))
+    .then(() => {
+      const orig = el.style.background;
+      el.style.background = 'var(--sage-l)';
+      el.style.borderColor = 'var(--sage)';
+      setTimeout(() => { el.style.background = orig; el.style.borderColor = ''; }, 1200);
+    });
+}
+
+// ══════════════════════════════════════════
+// AI CONTENT — Stats
+// ══════════════════════════════════════════
+
+function analyzeStats() {
+  const stats = document.getElementById('stats-input').value.trim();
+  const plat  = document.getElementById('stats-plat').value;
+  const type  = document.getElementById('stats-type').value;
+  if (!stats) return;
+  runAI(
+    `${NICHE_CTX}\n\nLe créateur partage ses stats pour un contenu ${type} sur ${plat} :\n${stats}\n\nDiagnostique : 1) Ce que ces chiffres révèlent réellement 2) Ce qui a bien marché / moins bien 3) La cause probable des résultats 4) 3 actions concrètes pour améliorer les prochains posts similaires.`,
+    'stats-result', 'stats-text', 'Diagnostic de tes stats…'
+  );
+}
+
+function analyzeFromHistory() {
+  const data = loadData();
+  if (data.length < 2) {
+    document.getElementById('history-analysis-result').style.display = 'block';
+    document.getElementById('history-analysis-text').innerHTML = '<span style="color:var(--muted);">Il te faut au moins 2 semaines de données saisies pour cette analyse.</span>';
+    return;
+  }
+  const last3 = data.slice(-3);
+  const summary = last3.map(e => {
+    const leads = (e.ig?.leads||0)+(e.li?.leads||0)+(e.tt?.leads||0)+(e.yt?.leads||0);
+    return `Semaine ${e.week}: IG=${e.ig?.followers||0}ab/${e.ig?.engage||0}%eng | LI=${e.li?.followers||0}ab/${e.li?.engage||0}%eng | TT=${e.tt?.followers||0}ab | YT=${e.yt?.followers||0}ab | Leads total=${leads}`;
+  }).join('\n');
+
+  runAI(
+    `${NICHE_CTX}\n\nVoici les données réelles des dernières semaines :\n${summary}\n\nAnalyse ces données et donne : 1) La tendance principale 2) La plateforme la plus performante et pourquoi 3) La plateforme à optimiser en priorité 4) 3 recommandations concrètes basées sur ces chiffres réels.`,
+    'history-analysis-result', 'history-analysis-text', 'Analyse de ton historique réel…'
+  );
+}
+
+// ══════════════════════════════════════════
+// AI CONTENT — Followers
+// ══════════════════════════════════════════
+
+function analyzeFollowers() {
+  const desc = document.getElementById('follow-input').value.trim();
+  if (!desc) return;
+  runAI(
+    `${NICHE_CTX}\n\nLe créateur décrit son évolution de followers : "${desc}"\n\nAnalyse : 1) Les causes probables de cette évolution 2) Les leviers à activer pour accélérer la croissance sur les plateformes qui stagnent 3) Le format et sujet de contenu à publier cette semaine pour booster les abonnements 4) Ce qu'il ne faut pas faire.`,
+    'follow-result', 'follow-text', 'Analyse de ton évolution…'
+  );
+}
+
+// ══════════════════════════════════════════
+// AI CONTENT — Caption
+// ══════════════════════════════════════════
+
+function analyzeCaption() {
+  const cap  = document.getElementById('cap-input').value.trim();
+  const plat = document.getElementById('cap-plat').value;
+  const goal = document.getElementById('cap-goal').value;
+  if (!cap) return;
+  runAI(
+    `${NICHE_CTX}\n\nLe créateur veut analyser cette légende pour ${plat} (${goal}) :\n\n"${cap}"\n\nDonne : 1) Note sur 10 avec justification (hook, corps, CTA) 2) Ce qui est fort 3) Ce qui affaiblit la conversion 4) Une version améliorée complète de la légende, optimisée pour l'objectif "${goal}" auprès des cadres +35 ans.`,
+    'cap-result', 'cap-text', 'Analyse de ta légende…'
+  );
+}
+
+// ══════════════════════════════════════════
+// AI CONTENT — Ideas
+// ══════════════════════════════════════════
+
+function generateContentIdeas() {
+  const plat    = document.getElementById('idea-plat').value;
+  const type    = document.getElementById('idea-type').value;
+  const context = document.getElementById('idea-context').value.trim();
+  runAI(
+    `${NICHE_CTX}\n\nGénère 5 idées de contenu${plat ? ' pour ' + plat : ''}${type ? ', format ' + type : ''}${context ? ', contexte : ' + context : ''}.\n\nPour chaque idée : titre accrocheur, format, description en 2 lignes, pourquoi ça va convertir pour les cadres +35 ans, et le CTA recommandé. Score de potentiel lead gen sur 10.`,
+    'ideas-result', 'ideas-text', 'Génération de tes idées…'
+  );
+}
+
+// ══════════════════════════════════════════
+// COMPETITORS — Storage & helpers
+// ══════════════════════════════════════════
+
+const COMP_KEY = 'sxb_competitors_v1';
+function loadComps() { try { return JSON.parse(localStorage.getItem(COMP_KEY)) || []; } catch { return []; } }
+function saveComps(list) { localStorage.setItem(COMP_KEY, JSON.stringify(list)); }
+
+const platMetaC = {
+  ig: { label:'Instagram', icon:'📸', bg:'rgba(196,98,45,0.12)', color:'var(--ig)', tagBg:'var(--terra-l)', tagColor:'var(--terra)' },
+  li: { label:'LinkedIn',  icon:'💼', bg:'rgba(58,107,138,0.12)', color:'var(--li)', tagBg:'var(--blue-l)', tagColor:'var(--blue)' },
+  tt: { label:'TikTok',    icon:'🎵', bg:'rgba(45,37,32,0.08)',  color:'var(--tt)', tagBg:'rgba(45,37,32,0.08)', tagColor:'var(--tt)' },
+  yt: { label:'YouTube',   icon:'▶️', bg:'rgba(160,32,32,0.1)',  color:'var(--yt)', tagBg:'rgba(160,32,32,0.1)', tagColor:'var(--yt)' }
+};
+
+function buildCompContext() {
+  const list = loadComps();
+  if (list.length === 0) return '';
+  const lines = list.map(c => {
+    const meta   = platMetaC[c.plat] || platMetaC.ig;
+    const latest = c.history?.[c.history.length - 1] || {};
+    const prev   = c.history?.[c.history.length - 2];
+    const delta  = prev ? (latest.followers||0) - (prev.followers||0) : null;
+    return `• ${c.name}${c.handle?' ('+c.handle+')':''} — ${meta.label}${c.niche?' · '+c.niche:''} : ${fmt_num(latest.followers||0)} abonnés, ${latest.engage||0}% engage, ${latest.posts||0} posts/sem${delta!==null?', Δ '+(delta>=0?'+':'')+fmt_num(delta):''}${c.note?'. Note : '+c.note:''}`;
+  });
+  return `\n\nDonnées réelles des créateurs suivis :\n${lines.join('\n')}`;
+}
+
+function buildFullCtx() { return NICHE_CTX + buildCompContext(); }
+
+// ── Tab switcher ──
+function switchCompTab(el, tab) {
+  document.querySelectorAll('.comp-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  ['list','add','csv','benchmark'].forEach(t => {
+    const p = document.getElementById('ctab-' + t);
+    if (p) p.style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'list')      renderCompetitors();
+  if (tab === 'benchmark') renderBenchmarkTable();
+}
+
+// ── Render grid ──
+function renderCompetitors() {
+  const filter = document.getElementById('comp-filter-plat')?.value || 'all';
+  let list = loadComps();
+  const all = [...list];
+  if (filter !== 'all') list = list.filter(c => c.plat === filter);
+
+  const grid  = document.getElementById('comp-grid');
+  const empty = document.getElementById('comp-empty');
+  const badge = document.getElementById('comp-total-badge');
+  const fb    = document.getElementById('comp-filter-bar');
+  if (!grid) return;
+
+  if (badge) badge.textContent = `${all.length} créateur${all.length > 1 ? 's' : ''} au total`;
+  if (fb) fb.style.display = all.length === 0 ? 'none' : 'flex';
+
+  if (list.length === 0) {
+    empty.style.display = 'block'; grid.style.display = 'none'; return;
+  }
+  empty.style.display = 'none'; grid.style.display = 'grid';
+
+  grid.innerHTML = list.map(c => {
+    const meta    = platMetaC[c.plat] || platMetaC.ig;
+    const initials = (c.name || c.handle || '??').replace('@','').slice(0,2).toUpperCase();
+    const latest  = c.history?.[c.history.length - 1] || {};
+    const prev    = c.history?.[c.history.length - 2];
+    const delta   = prev ? (latest.followers||0) - (prev.followers||0) : null;
+    const ds      = delta !== null ? (delta >= 0 ? `+${fmt_num(delta)}` : fmt_num(delta)) : '—';
+    const dc      = delta > 0 ? 'var(--sage)' : delta < 0 ? 'var(--red)' : 'var(--muted)';
+    const weeks   = c.history?.length || 0;
+    return `<div class="comp-card">
+      <div class="comp-card-header">
+        <div class="comp-avatar" style="background:${meta.bg};color:${meta.color};">${initials}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="comp-name">${c.name||c.handle}</div>
+          <div class="comp-handle">${c.handle?c.handle+' · ':''}${c.niche||''}</div>
+        </div>
+        <span class="comp-plat-tag" style="background:${meta.tagBg};color:${meta.tagColor};">${meta.icon}</span>
+      </div>
+      <div class="comp-body">
+        <div class="comp-stats-grid">
+          <div class="comp-stat"><div class="comp-stat-val">${fmt_num(latest.followers||0)}</div><div class="comp-stat-lbl">Abonnés</div></div>
+          <div class="comp-stat"><div class="comp-stat-val">${latest.engage||0}%</div><div class="comp-stat-lbl">Engagement</div></div>
+          <div class="comp-stat"><div class="comp-stat-val" style="color:${dc};">${ds}</div><div class="comp-stat-lbl">Δ Abonnés</div></div>
+        </div>
+        ${latest.posts?`<div style="font-size:11px;color:var(--muted);margin-top:10px;">📝 ${latest.posts}p/sem · ${fmt_num(latest.reach||0)} portée</div>`:''}
+        ${c.note?`<div style="font-size:11px;color:var(--dim);margin-top:6px;font-style:italic;">"${c.note}"</div>`:''}
+        <div style="font-size:10px;color:var(--muted);margin-top:8px;">📅 ${weeks} semaine${weeks>1?'s':''} de données</div>
+      </div>
+      <div class="comp-actions">
+        <button class="comp-btn-sm" onclick="openCompHistory('${c.id}')">📋 Historique</button>
+        <button class="comp-btn-sm danger" onclick="deleteComp('${c.id}')">✕ Supprimer</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Add manually ──
+function addCompetitor() {
+  const name = document.getElementById('add-name').value.trim();
+  if (!name) { alert('Le nom est obligatoire.'); return; }
+  const comp = {
+    id: Date.now().toString(), name,
+    handle: document.getElementById('add-handle').value.trim(),
+    plat:   document.getElementById('add-plat').value,
+    niche:  document.getElementById('add-niche').value.trim(),
+    note:   document.getElementById('add-note').value.trim(),
+    history:[]
+  };
+  const f = parseFloat(document.getElementById('add-followers').value)||0;
+  const e = parseFloat(document.getElementById('add-engage').value)||0;
+  const p = parseFloat(document.getElementById('add-posts').value)||0;
+  const r = parseFloat(document.getElementById('add-reach').value)||0;
+  if (f > 0) comp.history.push({ week: getWeekStr(new Date()), followers:f, engage:e, posts:p, reach:r });
+  const list = loadComps(); list.push(comp); saveComps(list);
+  ['add-name','add-handle','add-niche','add-followers','add-engage','add-posts','add-reach','add-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const toast = document.getElementById('add-toast');
+  toast.style.opacity='1'; setTimeout(()=>toast.style.opacity='0',2500);
+}
+
+function deleteComp(id) {
+  if (!confirm('Supprimer ce créateur et tout son historique ?')) return;
+  saveComps(loadComps().filter(c => c.id !== id));
+  renderCompetitors();
+}
+
+// ── History modal ──
+function openCompHistory(id) {
+  const comp = loadComps().find(c => c.id === id);
+  if (!comp) return;
+  document.getElementById('modal-title').textContent = `📋 ${comp.name}`;
+  document.getElementById('modal-comp-id').value = id;
+  document.getElementById('modal-week').value = getWeekStr(new Date());
+  const hist = comp.history || [];
+  const content = document.getElementById('modal-content');
+  if (hist.length === 0) {
+    content.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px 0;">Aucune semaine enregistrée encore.</div>';
+  } else {
+    content.innerHTML = '<div style="display:flex;flex-direction:column;gap:0;">' +
+      [...hist].reverse().map(h => {
+        const idx  = hist.findIndex(x => x.week === h.week);
+        const prev = idx > 0 ? hist[idx-1] : null;
+        const d    = prev ? (h.followers - prev.followers) : null;
+        const ds   = d !== null ? (d>=0?`+${fmt_num(d)}`:fmt_num(d)) : '';
+        const dc   = d > 0 ? 'var(--sage)' : d < 0 ? 'var(--red)' : 'var(--muted)';
+        return `<div class="comp-week-row">
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);min-width:110px;">${weekLabel(h.week)}</span>
+          <span style="font-weight:700;min-width:70px;">${fmt_num(h.followers)}</span>
+          <span style="font-size:11px;color:${dc};min-width:55px;">${ds}</span>
+          <span style="font-size:11px;color:var(--muted);">${h.engage||0}% · ${h.posts||0}p · ${fmt_num(h.reach||0)} portée</span>
+          <button onclick="deleteCompWeek('${id}','${h.week}')" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;" title="Supprimer">✕</button>
+        </div>`;
+      }).join('') + '</div>';
+  }
+  document.getElementById('comp-history-modal').style.display = 'flex';
+}
+
+function closeModal() { document.getElementById('comp-history-modal').style.display = 'none'; }
+
+function addCompWeek() {
+  const id = document.getElementById('modal-comp-id').value;
+  const week = document.getElementById('modal-week').value;
+  if (!week || !id) return;
+  const list = loadComps();
+  const comp = list.find(c => c.id === id);
+  if (!comp) return;
+  comp.history = comp.history.filter(h => h.week !== week);
+  comp.history.push({
+    week,
+    followers: parseFloat(document.getElementById('modal-followers').value)||0,
+    engage:    parseFloat(document.getElementById('modal-engage').value)||0,
+    posts:     parseFloat(document.getElementById('modal-posts').value)||0,
+    reach:     parseFloat(document.getElementById('modal-reach').value)||0
+  });
+  comp.history.sort((a,b) => a.week.localeCompare(b.week));
+  saveComps(list);
+  openCompHistory(id);
+}
+
+function deleteCompWeek(compId, week) {
+  const list = loadComps();
+  const comp = list.find(c => c.id === compId);
+  if (!comp) return;
+  comp.history = comp.history.filter(h => h.week !== week);
+  saveComps(list);
+  openCompHistory(compId);
+}
+
+// ── CSV ──
+function downloadCompTemplate() {
+  const csv = ['Nom,Handle,Plateforme,Niche,Semaine,Abonnes,Engagement,Posts,Portee,Note',
+    'Julie Martin,@juliemarket,tt,E-commerce,2026-W07,14600,6.1,4,48000,Forte croissance sur hooks famille',
+    'Olivier T.,@oliviert,li,Revenus passifs,2026-W07,48000,5.8,3,280000,Carrousels très partagés'].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = 'sxb_createurs_template.csv'; a.click();
+}
+
+function importCompCSV(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const lines = e.target.result.trim().split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const get = (row, key) => { const i = headers.indexOf(key); return i >= 0 ? (row[i]||'').trim() : ''; };
+      const list = loadComps();
+      let imported = 0, updated = 0;
+      for (let i = 1; i < lines.length; i++) {
+        const row  = lines[i].split(','); if (row.length < 5) continue;
+        const name = get(row,'nom'); if (!name) continue;
+        const plat = get(row,'plateforme').toLowerCase();
+        const week = get(row,'semaine');
+        let comp = list.find(c => c.name.toLowerCase() === name.toLowerCase() && c.plat === plat);
+        if (!comp) {
+          comp = { id: Date.now()+'_'+i, name, handle:get(row,'handle'), plat:['ig','li','tt','yt'].includes(plat)?plat:'ig', niche:get(row,'niche'), note:get(row,'note'), history:[] };
+          list.push(comp); imported++;
+        }
+        if (week) {
+          comp.history = comp.history.filter(h => h.week !== week);
+          comp.history.push({ week, followers:parseFloat(get(row,'abonnes'))||0, engage:parseFloat(get(row,'engagement'))||0, posts:parseFloat(get(row,'posts'))||0, reach:parseFloat(get(row,'portee'))||0 });
+          comp.history.sort((a,b)=>a.week.localeCompare(b.week));
+          updated++;
+        }
+      }
+      saveComps(list); event.target.value = '';
+      const res = document.getElementById('csv-import-result');
+      res.style.display = 'block';
+      res.textContent = `✅ ${imported} créateur(s) ajouté(s), ${updated} semaine(s) importée(s).`;
+      setTimeout(()=>res.style.display='none', 5000);
+    } catch { alert('Erreur CSV. Vérifie le format avec le modèle.'); }
+  };
+  reader.readAsText(file);
+}
+
+function exportCompCSV() {
+  const list = loadComps(); if (list.length === 0) { alert('Aucun créateur.'); return; }
+  const rows = [['Nom','Handle','Plateforme','Niche','Semaine','Abonnes','Engagement','Posts','Portee','Note'].join(',')];
+  list.forEach(c => {
+    if (c.history?.length > 0) c.history.forEach(h => rows.push([c.name,c.handle||'',c.plat,c.niche||'',h.week,h.followers||0,h.engage||0,h.posts||0,h.reach||0,c.note||''].join(',')));
+    else rows.push([c.name,c.handle||'',c.plat,c.niche||'','',0,0,0,0,c.note||''].join(','));
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));
+  a.download = `sxb_createurs_${getWeekStr(new Date())}.csv`; a.click();
+}
+
+// ── Benchmark ──
+function renderBenchmarkTable() {
+  const list = loadComps();
+  const wrap = document.getElementById('bench-table-wrap');
+  const body = document.getElementById('bench-table-body');
+  if (!wrap || !body) return;
+  if (list.length === 0) { wrap.style.display='none'; return; }
+  wrap.style.display = 'block';
+  const myData = loadData(); const myLast = myData[myData.length-1];
+  let rows = '';
+  if (myLast) {
+    [['ig','Instagram','📸'],['li','LinkedIn','💼'],['tt','TikTok','🎵'],['yt','YouTube','▶️']].forEach(([p,label,icon]) => {
+      const d = myLast[p]; if (!d?.followers) return;
+      rows += `<tr style="background:var(--terra-l);"><td style="padding:10px 12px;font-weight:700;color:var(--terra);">⭐ Moi</td><td style="padding:10px 12px;font-size:12px;">${icon} ${label}</td><td style="padding:10px 12px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;">${fmt_num(d.followers)}</td><td style="padding:10px 12px;text-align:right;font-family:'DM Mono',monospace;">${d.engage||0}%</td><td style="padding:10px 12px;text-align:right;font-family:'DM Mono',monospace;">${d.posts||0}</td><td style="padding:10px 12px;font-size:11px;color:var(--muted);">—</td></tr>`;
+    });
+  }
+  list.forEach(c => {
+    const meta = platMetaC[c.plat]||platMetaC.ig;
+    const lat  = c.history?.[c.history.length-1]||{};
+    rows += `<tr style="border-bottom:1px solid var(--border);"><td style="padding:10px 12px;font-weight:600;">${c.name}</td><td style="padding:10px 12px;font-size:12px;color:${meta.color};">${meta.icon} ${meta.label}</td><td style="padding:10px 12px;text-align:right;font-family:'DM Mono',monospace;">${fmt_num(lat.followers||0)}</td><td style="padding:10px 12px;text-align:right;font-family:'DM Mono',monospace;">${lat.engage||0}%</td><td style="padding:10px 12px;text-align:right;font-family:'DM Mono',monospace;">${lat.posts||0}</td><td style="padding:10px 12px;font-size:11px;color:var(--muted);">${c.note||'—'}</td></tr>`;
+  });
+  body.innerHTML = rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted);">Aucune donnée</td></tr>';
+}
+
+function runBenchmark() {
+  const list = loadComps();
+  if (list.length === 0) {
+    document.getElementById('bench-result').style.display = 'block';
+    document.getElementById('bench-text').innerHTML = '<span style="color:var(--muted);">Ajoute d\'abord des créateurs dans "Ajouter manuellement" ou "Importer CSV".</span>';
+    return;
+  }
+  const myData = loadData(); const myLast = myData[myData.length-1];
+  const myStats = myLast
+    ? `Mes stats : IG ${fmt_num(myLast.ig?.followers||0)}ab/${myLast.ig?.engage||0}% | LI ${fmt_num(myLast.li?.followers||0)}ab/${myLast.li?.engage||0}% | TT ${fmt_num(myLast.tt?.followers||0)}ab | YT ${fmt_num(myLast.yt?.followers||0)}ab`
+    : 'Pas encore de stats saisies.';
+  const context = document.getElementById('bench-context').value.trim();
+  renderBenchmarkTable();
+  runAI(
+    `${buildFullCtx()}\n\n${myStats}\n\n${context?'Contexte : '+context+'\n\n':''}Sur la base de ces données réelles, donne : 1) Diagnostic comparatif honnête (où je me situe) 2) Ce que ces créateurs font mieux sur chaque métrique 3) 3 leviers concrets à activer cette semaine pour combler l'écart 4) Un angle de contenu spécifique qui semble performer dans la niche selon ces chiffres.`,
+    'bench-result', 'bench-text', 'Benchmark en cours…'
+  );
+}
+
+// ── Patch AI functions to include competitor context ──
+const _orig_analyzeHook = analyzeHook;
+analyzeHook = function() {
+  const hook = document.getElementById('hook-input').value.trim();
+  const plat = document.getElementById('hook-plat').value;
+  if (!hook) return;
+  runAI(`${buildFullCtx()}\n\nAnalyse ce hook pour ${plat} : "${hook}"\n\n1) Note /10 2) Ce qui fonctionne 3) Ce à améliorer 4) 2 versions alternatives pour cadres +35 ans.`, 'hook-result', 'hook-text', 'Analyse du hook…');
+};
+
+const _orig_analyzeStats = analyzeStats;
+analyzeStats = function() {
+  const stats = document.getElementById('stats-input').value.trim();
+  const plat  = document.getElementById('stats-plat').value;
+  const type  = document.getElementById('stats-type').value;
+  if (!stats) return;
+  runAI(`${buildFullCtx()}\n\nStats ${type} sur ${plat} :\n${stats}\n\n1) Ce que révèlent ces chiffres 2) Points forts/faibles 3) Cause probable 4) 3 actions concrètes.`, 'stats-result', 'stats-text', 'Diagnostic des stats…');
+};
+
+const _orig_analyzeFromHistory = analyzeFromHistory;
+analyzeFromHistory = function() {
+  const data = loadData(); if (data.length < 2) { document.getElementById('history-analysis-result').style.display='block'; document.getElementById('history-analysis-text').innerHTML='<span style="color:var(--muted);">Il te faut au moins 2 semaines.</span>'; return; }
+  const s = data.slice(-3).map(e=>`Sem ${e.week}: IG=${fmt_num(e.ig?.followers||0)}/${e.ig?.engage||0}% | LI=${fmt_num(e.li?.followers||0)}/${e.li?.engage||0}% | TT=${fmt_num(e.tt?.followers||0)} | YT=${fmt_num(e.yt?.followers||0)} | Leads=${((e.ig?.leads||0)+(e.li?.leads||0)+(e.tt?.leads||0)+(e.yt?.leads||0))}`).join('\n');
+  runAI(`${buildFullCtx()}\n\nMes données :\n${s}\n\n1) Tendance principale 2) Meilleure plateforme et pourquoi 3) Plateforme à optimiser 4) 3 recommandations concrètes.`, 'history-analysis-result', 'history-analysis-text', 'Analyse de l\'historique…');
+};
+
+const _orig_analyzeFollowers = analyzeFollowers;
+analyzeFollowers = function() {
+  const desc = document.getElementById('follow-input').value.trim(); if (!desc) return;
+  runAI(`${buildFullCtx()}\n\nÉvolution followers : "${desc}"\n\n1) Causes probables 2) Leviers de croissance 3) Format à publier cette semaine 4) Ce qu'il ne faut pas faire.`, 'follow-result', 'follow-text', 'Analyse de l\'évolution…');
+};
+
+const _orig_generateContentIdeas = generateContentIdeas;
+generateContentIdeas = function() {
+  const plat    = document.getElementById('idea-plat').value;
+  const type    = document.getElementById('idea-type').value;
+  const context = document.getElementById('idea-context').value.trim();
+  runAI(`${buildFullCtx()}\n\nGénère 5 idées${plat?' pour '+plat:''}${type?', format '+type:''}${context?', contexte : '+context:''}.\n\nPour chaque : titre, format, description 2 lignes, pourquoi ça convertit, CTA, score /10.`, 'ideas-result', 'ideas-text', 'Génération des idées…');
+};
+
+// ══════════════════════════════════════════
+// INIT — load persisted data on page load
+// ══════════════════════════════════════════
+
+function toggleCk(el) {
+  el.classList.toggle('done');
+  el.querySelector('.ck-box').textContent = el.classList.contains('done') ? '✅' : '☐';
+}
+
+function resetChecklist() {
+  document.querySelectorAll('.ck-item').forEach(el => {
+    el.classList.remove('done');
+    el.querySelector('.ck-box').textContent = '☐';
+  });
+}
+
+// ══════════════════════════════════════════
+// MOBILE — Sidebar & bottom nav
+// ══════════════════════════════════════════
+
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-backdrop').classList.add('show');
+  const closeBtn = document.getElementById('sidebar-close');
+  if (closeBtn) closeBtn.style.display = 'block';
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('show');
+}
+
+function mobileNav(el, id) {
+  // Update bottom nav active state
+  document.querySelectorAll('.mn-item').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  // Reuse main nav — find the sidebar ni item
+  const sidebarNi = document.querySelector(`.ni[onclick*="'${id}'"]`);
+  if (sidebarNi) nav(sidebarNi, id);
+  else {
+    // fallback direct section switch
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    const sec = document.getElementById('sec-' + id);
+    if (sec) sec.classList.add('active');
+    if (navLabels[id]) {
+      document.getElementById('page-title').textContent = navLabels[id][0];
+      document.getElementById('page-sub').textContent   = navLabels[id][1];
+    }
+    if (id === 'overview')    renderOverview();
+    if (id === 'evolution')   renderEvolution();
+    if (id === 'competitors') renderCompetitors();
+  }
+  closeSidebar();
+}
+
+// Keep bottom nav in sync when sidebar nav is used
+const _origNav = nav;
+nav = function(el, id) {
+  _origNav(el, id);
+  // Sync bottom nav if it exists
+  document.querySelectorAll('.mn-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.sec === id);
+  });
+  closeSidebar();
+};
+
+// Show close button on mobile resize
+function checkMobile() {
+  const closeBtn = document.getElementById('sidebar-close');
+  if (!closeBtn) return;
+  closeBtn.style.display = window.innerWidth <= 680 ? 'block' : 'none';
+}
+window.addEventListener('resize', checkMobile);
+checkMobile();
+</script>
+
+<!-- ══ MOBILE BOTTOM NAV ══ -->
+<nav class="mobile-nav" id="mobile-nav">
+  <button class="mn-item active" onclick="mobileNav(this,'overview')" data-sec="overview">
+    <span class="mn-icon">📊</span><span class="mn-lbl">Vue</span>
+  </button>
+  <button class="mn-item" onclick="mobileNav(this,'entry')" data-sec="entry">
+    <span class="mn-icon">✏️</span><span class="mn-lbl">Saisie</span>
+  </button>
+  <button class="mn-item" onclick="mobileNav(this,'evolution')" data-sec="evolution">
+    <span class="mn-icon">📈</span><span class="mn-lbl">Évolution</span>
+  </button>
+  <button class="mn-item" onclick="mobileNav(this,'competitors')" data-sec="competitors">
+    <span class="mn-icon">🔍</span><span class="mn-lbl">Créateurs</span>
+  </button>
+  <button class="mn-item" onclick="mobileNav(this,'aicontent')" data-sec="aicontent">
+    <span class="mn-icon">🤖</span><span class="mn-lbl">IA</span>
+  </button>
+</nav>
+<script>
+// ══════════════════════════════════════════
+// SUPABASE CONFIG
+// ══════════════════════════════════════════
+const SUPA_URL = 'https://gwjoxwlmnpwvlrgdfwsc.supabase.co';
+const SUPA_KEY = 'sb_publishable_eZaYiygXCXqXEctuir1XDw_JDh048hn';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+let currentUser = null;
+
+// ── Auth UI ──
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('auth-login').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('auth-signup').style.display = tab === 'signup' ? 'block' : 'none';
+}
+
+function showAuthMsg(id, msg, type) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'auth-msg ' + type;
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pwd   = document.getElementById('login-password').value;
+  if (!email || !pwd) return showAuthMsg('login-msg', 'Remplis tous les champs.', 'error');
+  const btn = document.querySelector('#auth-login .auth-btn');
+  btn.disabled = true; btn.textContent = 'Connexion…';
+  const { data, error } = await supa.auth.signInWithPassword({ email, password: pwd });
+  btn.disabled = false; btn.textContent = 'Se connecter →';
+  if (error) return showAuthMsg('login-msg', error.message, 'error');
+  onAuthSuccess(data.user);
+}
+
+async function doSignup() {
+  const email = document.getElementById('signup-email').value.trim();
+  const pwd   = document.getElementById('signup-password').value;
+  if (!email || !pwd) return showAuthMsg('signup-msg', 'Remplis tous les champs.', 'error');
+  if (pwd.length < 8) return showAuthMsg('signup-msg', 'Mot de passe trop court (8 car. min).', 'error');
+  const btn = document.querySelector('#auth-signup .auth-btn');
+  btn.disabled = true; btn.textContent = 'Création…';
+  const { data, error } = await supa.auth.signUp({ email, password: pwd });
+  btn.disabled = false; btn.textContent = 'Créer mon compte →';
+  if (error) return showAuthMsg('signup-msg', error.message, 'error');
+  if (data.user && !data.session) {
+    showAuthMsg('signup-msg', '✅ Vérifie ton email pour confirmer ton compte.', 'success');
+  } else if (data.user) {
+    onAuthSuccess(data.user);
+  }
+}
+
+async function doLogout() {
+  await supa.auth.signOut();
+  currentUser = null;
+  document.getElementById('auth-screen').classList.remove('hidden');
+  document.getElementById('user-bar').style.display = 'none';
+}
+
+function onAuthSuccess(user) {
+  currentUser = user;
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('user-bar').style.display = 'flex';
+  document.getElementById('user-email-display').textContent = user.email;
+  migrateLocalStorageToSupabase();
+  refreshAllData();
+}
+
+// ── Init auth state ──
+async function initAuth() {
+  const { data: { session } } = await supa.auth.getSession();
+  if (session?.user) {
+    onAuthSuccess(session.user);
+  }
+  supa.auth.onAuthStateChange((_event, session) => {
+    if (session?.user && !currentUser) onAuthSuccess(session.user);
+  });
+}
+
+// ══════════════════════════════════════════
+// SUPABASE DATA LAYER
+// ══════════════════════════════════════════
+
+// ── Weekly entries ──
+async function supaLoadData() {
+  if (!currentUser) return loadDataLocal();
+  const { data, error } = await supa
+    .from('weekly_entries')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('created_at', { ascending: false });
+  if (error) { console.warn('Supa load error:', error); return loadDataLocal(); }
+  return data.map(r => r.entry_data);
+}
+
+async function supaSaveData(entries) {
+  if (!currentUser) return saveDataLocal(entries);
+  // Upsert all entries keyed by week+platform
+  const rows = entries.map(e => ({
+    user_id: currentUser.id,
+    week_platform: `${e.week}_${e.platform}`,
+    entry_data: e,
+    updated_at: new Date().toISOString()
+  }));
+  const { error } = await supa
+    .from('weekly_entries')
+    .upsert(rows, { onConflict: 'user_id,week_platform' });
+  if (error) console.warn('Supa save error:', error);
+  saveDataLocal(entries); // always keep local backup
+}
+
+// ── Watch accounts ──
+async function supaLoadAccounts() {
+  if (!currentUser) return loadWatchAccountsLocal();
+  const { data, error } = await supa
+    .from('watch_accounts')
+    .select('*')
+    .eq('user_id', currentUser.id);
+  if (error) return loadWatchAccountsLocal();
+  return data.map(r => r.account_data);
+}
+
+async function supaSaveAccounts(list) {
+  if (!currentUser) return saveWatchAccountsLocal(list);
+  await supa.from('watch_accounts').delete().eq('user_id', currentUser.id);
+  if (list.length > 0) {
+    const rows = list.map(a => ({ user_id: currentUser.id, account_data: a }));
+    await supa.from('watch_accounts').insert(rows);
+  }
+  saveWatchAccountsLocal(list);
+}
+
+// ── Veille notes ──
+async function supaLoadNotes() {
+  if (!currentUser) return loadVeilleNotesLocal();
+  const { data } = await supa
+    .from('veille_notes')
+    .select('notes')
+    .eq('user_id', currentUser.id)
+    .single();
+  return data?.notes || loadVeilleNotesLocal();
+}
+
+async function supaSaveNotes(notes) {
+  if (!currentUser) return saveVeilleNotesLocal(notes);
+  await supa.from('veille_notes').upsert(
+    { user_id: currentUser.id, notes, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' }
+  );
+  saveVeilleNotesLocal(notes);
+}
+
+// ── Competitors ──
+async function supaLoadComps() {
+  if (!currentUser) return loadCompsLocal();
+  const { data, error } = await supa
+    .from('competitors')
+    .select('*')
+    .eq('user_id', currentUser.id);
+  if (error) return loadCompsLocal();
+  return data.map(r => r.comp_data);
+}
+
+async function supaSaveComps(list) {
+  if (!currentUser) return saveCompsLocal(list);
+  await supa.from('competitors').delete().eq('user_id', currentUser.id);
+  if (list.length > 0) {
+    const rows = list.map(c => ({ user_id: currentUser.id, comp_data: c }));
+    await supa.from('competitors').insert(rows);
+  }
+  saveCompsLocal(list);
+}
+
+// ══════════════════════════════════════════
+// LOCAL STORAGE FALLBACKS (backup)
+// ══════════════════════════════════════════
+function loadDataLocal() { try { return JSON.parse(localStorage.getItem('pulse_data_v2')) || []; } catch { return []; } }
+function saveDataLocal(d) { localStorage.setItem('pulse_data_v2', JSON.stringify(d)); }
+function loadWatchAccountsLocal() { try { return JSON.parse(localStorage.getItem('sxb_veille_accounts')) || []; } catch { return []; } }
+function saveWatchAccountsLocal(l) { localStorage.setItem('sxb_veille_accounts', JSON.stringify(l)); }
+function loadVeilleNotesLocal() { return localStorage.getItem('sxb_veille_notes') || ''; }
+function saveVeilleNotesLocal(n) { localStorage.setItem('sxb_veille_notes', n); }
+function loadCompsLocal() { try { return JSON.parse(localStorage.getItem('sxb_competitors_v1')) || []; } catch { return []; } }
+function saveCompsLocal(l) { localStorage.setItem('sxb_competitors_v1', JSON.stringify(l)); }
+
+// ══════════════════════════════════════════
+// MIGRATION localStorage → Supabase
+// ══════════════════════════════════════════
+async function migrateLocalStorageToSupabase() {
+  if (!currentUser) return;
+  const migrated = localStorage.getItem('sxb_migrated_v1');
+  if (migrated) return;
+
+  const entries = loadDataLocal();
+  const accounts = loadWatchAccountsLocal();
+  const notes = loadVeilleNotesLocal();
+  const comps = loadCompsLocal();
+
+  let migrationDone = false;
+  if (entries.length > 0) { await supaSaveData(entries); migrationDone = true; }
+  if (accounts.length > 0) { await supaSaveAccounts(accounts); migrationDone = true; }
+  if (notes) { await supaSaveNotes(notes); migrationDone = true; }
+  if (comps.length > 0) { await supaSaveComps(comps); migrationDone = true; }
+
+  if (migrationDone) {
+    localStorage.setItem('sxb_migrated_v1', '1');
+    console.log('✅ Migration localStorage → Supabase terminée');
+  }
+}
+
+// ══════════════════════════════════════════
+// OVERRIDE FUNCTIONS (remplace localStorage)
+// ══════════════════════════════════════════
+async function refreshAllData() {
+  // Re-render all sections with Supabase data
+  renderOverview();
+  renderWatchList();
+  const notesEl = document.getElementById('veille-notes');
+  if (notesEl) notesEl.value = await supaLoadNotes();
+}
+
+// Override saveEntry to use Supabase
+const _origSaveEntry = saveEntry;
+window.saveEntry = async function() {
+  _origSaveEntry(); // saves locally first (fast)
+  const entries = loadDataLocal();
+  await supaSaveData(entries); // then sync to Supabase
+};
+
+// Override saveWatchAccounts
+window.saveWatchAccounts = async function(list) {
+  saveWatchAccountsLocal(list);
+  await supaSaveAccounts(list);
+};
+
+// Override saveVeilleNotes  
+window.saveVeilleNotes = async function() {
+  const notesEl = document.getElementById('veille-notes');
+  const notes = notesEl ? notesEl.value : '';
+  saveVeilleNotesLocal(notes);
+  await supaSaveNotes(notes);
+};
+
+// Override saveComps
+window.saveComps = async function(list) {
+  saveCompsLocal(list);
+  await supaSaveComps(list);
+};
+
+// Override loadData to be async-aware (for renderOverview etc.)
+window.loadData = loadDataLocal; // keep sync for render functions, Supabase syncs in background
+window.loadWatchAccounts = loadWatchAccountsLocal;
+window.loadVeilleNotes = loadVeilleNotesLocal;
+window.loadComps = loadCompsLocal;
+
+// ── Start auth on load ──
+initAuth();
+</script>
+</body>
+</html>
