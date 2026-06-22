@@ -3583,15 +3583,23 @@ checkMobile();
 // ══════════════════════════════════════════
 const SUPA_URL = 'https://gwjoxwlmnpwvlrgdfwsc.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3am94d2xtbnB3dmxyZ2Rmd3NjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NDE0ODIsImV4cCI6MjA4NzUxNzQ4Mn0.Wn2yOVvHQygMKolKxXyMVE_x54mE9cmZZweAXOpN-34';
-const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storageKey: 'sxb-rs-auth',
-    storage: window.localStorage
-  }
-});
+
+let supa = null;
+try {
+  supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: 'sxb-rs-auth',
+      storage: window.localStorage
+    }
+  });
+  console.log('✅ Supabase initialisé');
+} catch(e) {
+  console.error('❌ Erreur Supabase init:', e);
+  document.getElementById('login-msg') && (document.getElementById('login-msg').textContent = 'Erreur de connexion au serveur. Rechargez la page.');
+}
 
 let currentUser = null;
 
@@ -3610,15 +3618,23 @@ function showAuthMsg(id, msg, type) {
 }
 
 async function doLogin() {
+  console.log('🔐 doLogin appelé');
+  if (!supa) return showAuthMsg('login-msg', 'Erreur: SDK non chargé. Rechargez la page.', 'error');
   const email = document.getElementById('login-email').value.trim();
   const pwd   = document.getElementById('login-password').value;
   if (!email || !pwd) return showAuthMsg('login-msg', 'Remplis tous les champs.', 'error');
   const btn = document.querySelector('#auth-login .auth-btn');
   btn.disabled = true; btn.textContent = 'Connexion…';
-  const { data, error } = await supa.auth.signInWithPassword({ email, password: pwd });
-  btn.disabled = false; btn.textContent = 'Se connecter →';
-  if (error) return showAuthMsg('login-msg', error.message, 'error');
-  onAuthSuccess(data.user);
+  try {
+    const { data, error } = await supa.auth.signInWithPassword({ email, password: pwd });
+    btn.disabled = false; btn.textContent = 'Se connecter →';
+    if (error) return showAuthMsg('login-msg', error.message, 'error');
+    onAuthSuccess(data.user);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Se connecter →';
+    console.error('Login error:', e);
+    showAuthMsg('login-msg', 'Erreur: ' + e.message, 'error');
+  }
 }
 
 async function doSignup() {
@@ -4142,7 +4158,14 @@ function fillFieldsFromScreenshot(plat, data) {
 }
 
 // ── Start auth on load ──
-initAuth();
+document.addEventListener('DOMContentLoaded', function() {
+  if (supa) {
+    initAuth();
+  } else {
+    console.error('Supabase non disponible');
+    showAuthMsg('login-msg', 'Erreur de chargement. Rechargez la page.', 'error');
+  }
+});
 </script>
 </body>
 </html>
