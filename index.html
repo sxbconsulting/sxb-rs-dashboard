@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SXB RS DASHBOARD '26</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
 <style>
 :root {
   --cream: #faf7f2;
@@ -3618,6 +3618,7 @@ function showAuthMsg(id, msg, type) {
 }
 
 async function doLogin() {
+  alert('doLogin appelé — JS fonctionne');
   console.log('🔐 doLogin appelé');
   if (!supa) return showAuthMsg('login-msg', 'Erreur: SDK non chargé. Rechargez la page.', 'error');
   const email = document.getElementById('login-email').value.trim();
